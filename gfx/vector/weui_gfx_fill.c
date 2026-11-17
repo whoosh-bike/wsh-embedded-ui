@@ -484,7 +484,7 @@ static bool WeUi_Gfx_Fill_LinearBuffer(const WeUi_Gfx_FillCtx_t* ctx, u16* pixel
 							(8 * FLT_EPSILON * WEUI_GFX_FILL_INDEX_ONE) +
 						(float)(to - from + 2);
 	if (!(fabsf(start) < limit && fabsf(end) < limit && fabsf(step) < limit &&
-		  error < WEUI_GFX_FILL_INDEX_ONE / 2))
+		  error < (float)WEUI_GFX_FILL_INDEX_ONE / 2.0f))
 		return false;
 	s32 cursor		  = (s32)(start * WEUI_GFX_FILL_INDEX_ONE);
 	const s32 advance = (s32)(step * WEUI_GFX_FILL_INDEX_ONE);

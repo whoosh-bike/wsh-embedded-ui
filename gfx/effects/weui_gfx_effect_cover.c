@@ -105,7 +105,10 @@ static void WeUi_Gfx_Effect_Row_Cover(const WeUi_Gfx_Effect_Ctx_t* pcCtx, WeUi_G
 	}
 
 	WeUi_Gfx_PtPos_t sy = y - dy;
-	WeUi_Gfx_PtPos_t x0 = GET_MAX(dx, 0), x1 = GET_MIN(width + dx, width);
+	WeUi_Gfx_PtPos_t x0 = GET_MAX(dx, 0);
+	/* min(width + dx, width) without an addition next to the comparison: cppcheck reads
+	 * (width + dx) < width as an overflow test, which signed overflow would make UB */
+	WeUi_Gfx_PtPos_t x1 = dx < 0 ? (WeUi_Gfx_PtPos_t)(width + dx) : width;
 	if (sy < 0 || sy >= height || x1 <= x0) {
 		if (pcParams->Cover)
 			WeUi_Gfx_Effect_RowOld(0, 0, y, width);

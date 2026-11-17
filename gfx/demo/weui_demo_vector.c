@@ -256,15 +256,15 @@ void WeUi_DrawDemo_Paths(void) {
 
 /* Stripes under the shapes: an edge blends with them, not just with black */
 static RET_STATE_t WeUi_DemoFills_Stripes(void) {
-	float w = (float)WeUi_Gfx_Adapter_GetWidth();
-	float h = (float)WeUi_Gfx_Adapter_GetHeight();
-	u32 n	= 0;
+	WeUi_Gfx_ObjSize_t width = WeUi_Gfx_Adapter_GetWidth();
+	float h					 = (float)WeUi_Gfx_Adapter_GetHeight();
+	u32 n					 = 0;
 
-	for (float x = 0.0f; x < w; x += DEMO_FILLS_STRIPE_W, n++) {
+	for (u32 x = 0; x < width; x += DEMO_FILLS_STRIPE_W, n++) {
 		u8 level = (n % 2) ? DEMO_FILLS_STRIPE_LITE : DEMO_FILLS_STRIPE_DARK;
 		WeUi_Gfx_Path_Reset(&WeUi_DemoPaths_Path, NULL);
-		RETURN_IF_UNSUCCESS(
-			WeUi_Gfx_Path_Rect(&WeUi_DemoPaths_Path, x, 0.0f, x + DEMO_FILLS_STRIPE_W, h));
+		RETURN_IF_UNSUCCESS(WeUi_Gfx_Path_Rect(&WeUi_DemoPaths_Path, (float)x, 0.0f,
+											   (float)(x + DEMO_FILLS_STRIPE_W), h));
 		RETURN_IF_UNSUCCESS(WeUi_Gfx_Fill_Solid(
 			&WeUi_DemoPaths_Path, WeUi_Gfx_Transform_FillColorFromChannel(level), NULL));
 	}
