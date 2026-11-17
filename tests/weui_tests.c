@@ -792,8 +792,8 @@ static void Vec_FramesClose(void) {
 	VecCloses++;
 }
 
-static const WeUi_Gfx_SceneVtbl_t VecA				= {.Build = VecA_Build, .Fps = 30};
-static const WeUi_Gfx_SceneVtbl_t VecB				= {.Build = VecB_Build, .Fps = 30};
+static const WeUi_Gfx_SceneVtbl_t VecA				 = {.Build = VecA_Build, .Fps = 30};
+static const WeUi_Gfx_SceneVtbl_t VecB				 = {.Build = VecB_Build, .Fps = 30};
 static const WeUi_Gfx_SceneVtbl_t* const VecScenes[] = {&VecA, &VecB};
 
 static void Vec_Reset(void) {
@@ -818,9 +818,8 @@ static void Vec_Run(void) {
  * overlay's items with it */
 static void Test_SceneMgrVector(void) {
 	Vec_Reset();
-	WeUi_Gfx_SceneMgrCfg_t cfg = {.Scenes		= VecScenes,
-								  .SceneCount	= NUM_ELEMENTS(VecScenes),
-								  .OverlayItems = Vec_Overlay};
+	WeUi_Gfx_SceneMgrCfg_t cfg = {
+		.Scenes = VecScenes, .SceneCount = NUM_ELEMENTS(VecScenes), .OverlayItems = Vec_Overlay};
 	WeUi_Gfx_SceneMgr_Init(&cfg);
 	Vec_Run();
 
@@ -2183,7 +2182,7 @@ static void Test_SceneMaskBands(void) {
 		  "wide scene mask clip");
 
 	const size_t size = WEUI_DISPLAY_WIDTH * WEUI_GFX_RASTER_BAND_ROWS;
-	u16* pixels = malloc(size * sizeof(*pixels));
+	u16* pixels		  = malloc(size * sizeof(*pixels));
 	CHECK(pixels != NULL, "wide mask target buffer");
 	if (!pixels)
 		return;
@@ -2192,14 +2191,15 @@ static void Test_SceneMaskBands(void) {
 	for (s16 y = 1; y < WEUI_DISPLAY_HEIGHT; y++) {
 		const WeUi_Gfx_Target_t target = {
 			.Format = WEUI_GFX_TARGET_RGB565,
-			.pBuf = pixels,
+			.pBuf	= pixels,
 			.Stride = WEUI_DISPLAY_WIDTH,
-			.Rect = {
-				.X0 = 0,
-				.Y0 = y,
-				.X1 = WEUI_DISPLAY_WIDTH,
-				.Y1 = GET_MIN(y + WEUI_GFX_RASTER_BAND_ROWS, WEUI_DISPLAY_HEIGHT),
-			},
+			.Rect =
+				{
+					.X0 = 0,
+					.Y0 = y,
+					.X1 = WEUI_DISPLAY_WIDTH,
+					.Y1 = GET_MIN(y + WEUI_GFX_RASTER_BAND_ROWS, WEUI_DISPLAY_HEIGHT),
+				},
 		};
 		const RET_STATE_t rs = WeUi_Gfx_Scene_DrawTo(&TestScene, &target);
 		CHECK(rs == RET_STATE_SUCCESS, "wide mask at y=%d refused: %d", y, rs);
@@ -2595,14 +2595,15 @@ static void Test_TransitionsInBands(void) {
 		RET_STATE_t (*Play)(void);
 		u32 Variants;
 	} effects[] = {
-		{"fade", BandsFade, 1},			  {"dissolve", BandsDissolve, 1}, {"flash", BandsFlash, 1},
-		{"dim", BandsDim, 1},			  {"push", BandsPush, 4},		  {"cover", BandsCover, 8},
-		{"curtain", BandsCurtain, 2},	  {"interlace", BandsInterlace, 1},
-		{"blinds", BandsBlinds, 1},		  {"blocks", BandsBlocks, 1},	  {"reload", BandsReload, 1},
-		{"wave", BandsWave, 1},			  {"rain", BandsRain, 1},		  {"melt", BandsMelt, 1},
-		{"zoom", BandsZoom, 1},			  {"rotate", BandsRotate, 1},
-		{"pixelate", BandsPixelate, 1},
-        {"row_sample", BandsSample, 1},
+		{"fade", BandsFade, 1},			{"dissolve", BandsDissolve, 1},
+		{"flash", BandsFlash, 1},		{"dim", BandsDim, 1},
+		{"push", BandsPush, 4},			{"cover", BandsCover, 8},
+		{"curtain", BandsCurtain, 2},	{"interlace", BandsInterlace, 1},
+		{"blinds", BandsBlinds, 1},		{"blocks", BandsBlocks, 1},
+		{"reload", BandsReload, 1},		{"wave", BandsWave, 1},
+		{"rain", BandsRain, 1},			{"melt", BandsMelt, 1},
+		{"zoom", BandsZoom, 1},			{"rotate", BandsRotate, 1},
+		{"pixelate", BandsPixelate, 1}, {"row_sample", BandsSample, 1},
 	};
 	u64 inPlace[TEST_BANDS_FRAMES], inBands[TEST_BANDS_FRAMES];
 

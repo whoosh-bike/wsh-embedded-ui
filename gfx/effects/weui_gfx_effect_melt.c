@@ -16,7 +16,8 @@ static void WeUi_Gfx_Effect_Row_Melt(const WeUi_Gfx_Effect_Ctx_t* pcCtx, WeUi_Gf
 	if (y == 0) {
 		for (WeUi_Gfx_PtPos_t x = 0; x < width; x += columnPx) {
 			float run = WeUi_Gfx_Effect_ColumnRun(pcCtx, x, columnPx, WEUI_GFX_EFFECT_MELT_SPREAD);
-			WeUi_Gfx_Effect_MeltSag[x] = (WeUi_Gfx_PtPos_t)((float)pcCtx->Height * run * run + 0.5f);
+			WeUi_Gfx_Effect_MeltSag[x] =
+				(WeUi_Gfx_PtPos_t)((float)pcCtx->Height * run * run + 0.5f);
 		}
 	}
 	for (WeUi_Gfx_PtPos_t x = 0; x < width; x += columnPx) {

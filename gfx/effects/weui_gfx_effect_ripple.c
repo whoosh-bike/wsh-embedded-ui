@@ -47,7 +47,8 @@ static void WeUi_Gfx_Effect_Compose_Ripple(const WeUi_Gfx_Effect_Ctx_t* pcCtx) {
 			if (depth < WEUI_GFX_EFFECT_RIPPLE_CREST) {
 				float shine =
 					WEUI_GFX_EFFECT_RIPPLE_SHINE * (1.0f - depth / WEUI_GFX_EFFECT_RIPPLE_CREST);
-				WeUi_Gfx_Effect_SetNew(x, y, WeUi_Gfx_Effect_Lighten(WeUi_Gfx_Effect_GetNew(x, y), shine));
+				WeUi_Gfx_Effect_SetNew(
+					x, y, WeUi_Gfx_Effect_Lighten(WeUi_Gfx_Effect_GetNew(x, y), shine));
 			}
 		}
 	}

@@ -192,10 +192,10 @@ static void WeUi_Gfx_Effect_Row_Push(const WeUi_Gfx_Effect_Ctx_t* pcCtx, WeUi_Gf
 	WeUi_Gfx_PtPos_t span = (WeUi_Gfx_PtPos_t)(axis.Vertical ? pcCtx->Height : pcCtx->Width);
 
 	float travel = WeUi_Gfx_Effect_PushTravel(pcParams->CfgPtr, pcCtx->Progress, (float)span);
-	WeUi_Gfx_PtPos_t offset = (WeUi_Gfx_PtPos_t)(travel + 0.5f);
-	WeUi_Gfx_PtPos_t shift	= offset - span;
-	WeUi_Gfx_PtPos_t gap	= (shift > 0) ? ((shift < span) ? shift : span) : 0;
-	WeUi_Gfx_PtPos_t slid	= (shift > 0) ? span : offset;
+	WeUi_Gfx_PtPos_t offset	  = (WeUi_Gfx_PtPos_t)(travel + 0.5f);
+	WeUi_Gfx_PtPos_t shift	  = offset - span;
+	WeUi_Gfx_PtPos_t gap	  = (shift > 0) ? ((shift < span) ? shift : span) : 0;
+	WeUi_Gfx_PtPos_t slid	  = (shift > 0) ? span : offset;
 	WeUi_Gfx_ColorRaw_t blank = WeUi_Gfx_Effect_Blank();
 
 	if (axis.Vertical) {

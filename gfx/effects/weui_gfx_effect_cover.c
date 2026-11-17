@@ -91,10 +91,10 @@ static void WeUi_Gfx_Effect_Row_Cover(const WeUi_Gfx_Effect_Ctx_t* pcCtx, WeUi_G
 	const WeUi_Gfx_Effect_CoverParams_t* pcParams = pcCtx->ParamsPtr;
 	WeUi_Gfx_PtPos_t width						  = (WeUi_Gfx_PtPos_t)pcCtx->Width;
 	WeUi_Gfx_PtPos_t height						  = (WeUi_Gfx_PtPos_t)pcCtx->Height;
-	bool vertical = pcParams->Slide == WEUI_GFX_EFFECT_SLIDE_DOWN ||
-					pcParams->Slide == WEUI_GFX_EFFECT_SLIDE_UP;
-	WeUi_Gfx_PtPos_t span = vertical ? height : width;
-	float travel		  = (float)span * WeUi_Gfx_Effect_Smooth(pcCtx->Progress);
+	bool vertical								  = pcParams->Slide == WEUI_GFX_EFFECT_SLIDE_DOWN ||
+													pcParams->Slide == WEUI_GFX_EFFECT_SLIDE_UP;
+	WeUi_Gfx_PtPos_t span						  = vertical ? height : width;
+	float travel = (float)span * WeUi_Gfx_Effect_Smooth(pcCtx->Progress);
 	WeUi_Gfx_PtPos_t offset =
 		(WeUi_Gfx_PtPos_t)((pcParams->Cover ? (float)span - travel : travel) + 0.5f);
 	WeUi_Gfx_PtPos_t dx, dy;

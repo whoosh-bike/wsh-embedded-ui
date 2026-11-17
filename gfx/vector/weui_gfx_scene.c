@@ -26,8 +26,8 @@
 /* The masks rendered for the band being drawn. Two sets, as the rasteriser: two cores may draw
  * two bands of one frame at once. A mask that fits its slot is rendered for its whole bounds
  * and kept for the bands after: its shape does not change while the frame is drawn */
-static u8 WEUI_DATA_PLACEMENT
-	CacheBufs[WEUI_GFX_RASTER_SETS][WEUI_GFX_SCENE_MASKS_CACHED][WEUI_GFX_RASTER_WIDTH_MAX * WEUI_GFX_SCENE_MASK_ROWS];
+static u8 WEUI_DATA_PLACEMENT CacheBufs[WEUI_GFX_RASTER_SETS][WEUI_GFX_SCENE_MASKS_CACHED]
+									   [WEUI_GFX_RASTER_WIDTH_MAX * WEUI_GFX_SCENE_MASK_ROWS];
 static WeUi_Gfx_Mask_t CacheMasks[WEUI_GFX_RASTER_SETS][WEUI_GFX_SCENE_MASKS_CACHED];
 static u8 CacheItem[WEUI_GFX_RASTER_SETS][WEUI_GFX_SCENE_MASKS_CACHED];
 static WeUi_Gfx_ClipRect_t CacheRect[WEUI_GFX_RASTER_SETS][WEUI_GFX_SCENE_MASKS_CACHED];
@@ -387,24 +387,23 @@ static RET_STATE_t WeUi_Gfx_Scene_CachedMask(const WeUi_Gfx_Scene_t* pcScene, u8
 	/* The mask's whole bounds where its slot holds them: rendered once, served to every band */
 	const bool fits =
 		(bounds.X1 - bounds.X0) <= WEUI_GFX_RASTER_WIDTH_MAX &&
-		(u32)(bounds.X1 - bounds.X0) * (u32)(bounds.Y1 - bounds.Y0) <=
-			(u32)sizeof(CacheBufs[0][0]);
+		(u32)(bounds.X1 - bounds.X0) * (u32)(bounds.Y1 - bounds.Y0) <= (u32)sizeof(CacheBufs[0][0]);
 	WeUi_Gfx_ClipRect_t rect = bounds;
 	if (!fits) {
 		/* The band's rows out to the slot's height, within the bounds: bands one after
 		 * another share the render. The width is the band's, as it must fit the rasteriser */
-		rect = WeUi_Gfx_Scene_Cut(bounds, pcBand);
+		rect		   = WeUi_Gfx_Scene_Cut(bounds, pcBand);
 		const s32 rows = (s32)WEUI_GFX_SCENE_MASK_ROWS;
-		const s32 y0 = GET_MAX(((s32)rect.Y0 / rows) * rows, (s32)bounds.Y0);
-		const s32 y1 = GET_MIN(((s32)rect.Y1 + rows - 1) / rows * rows, (s32)bounds.Y1);
+		const s32 y0   = GET_MAX(((s32)rect.Y0 / rows) * rows, (s32)bounds.Y0);
+		const s32 y1   = GET_MIN(((s32)rect.Y1 + rows - 1) / rows * rows, (s32)bounds.Y1);
 		/* An unaligned damage band can span two cache rows; only expand if both fit. */
 		if ((u32)(rect.X1 - rect.X0) * (u32)(y1 - y0) <= sizeof(CacheBufs[0][0])) {
 			rect.Y0 = (WeUi_Gfx_PtPos_t)y0;
 			rect.Y1 = (WeUi_Gfx_PtPos_t)y1;
 		}
 	}
-	const u32 hash = WeUi_Gfx_Scene_MixShape(WEUI_GFX_SCENE_FNV_BASIS, pcScene,
-											 &pcScene->Items[mask]);
+	const u32 hash =
+		WeUi_Gfx_Scene_MixShape(WEUI_GFX_SCENE_FNV_BASIS, pcScene, &pcScene->Items[mask]);
 	for (u32 k = 0; k < WEUI_GFX_SCENE_MASKS_CACHED; k++) {
 		if (CacheItem[id][k] == mask && CacheHash[id][k] == hash &&
 			CacheRect[id][k].X0 == rect.X0 && CacheRect[id][k].Y0 == rect.Y0 &&
@@ -418,8 +417,8 @@ static RET_STATE_t WeUi_Gfx_Scene_CachedMask(const WeUi_Gfx_Scene_t* pcScene, u8
 	if (k == keep)
 		k = CacheNext[id]++ % WEUI_GFX_SCENE_MASKS_CACHED;
 	CacheItem[id][k] = WEUI_GFX_SCENE_NO_ITEM;
-	RETURN_IF_UNSUCCESS(WeUi_Gfx_Mask_Init(&CacheMasks[id][k], CacheBufs[id][k],
-										   sizeof(CacheBufs[id][k]), &rect));
+	RETURN_IF_UNSUCCESS(
+		WeUi_Gfx_Mask_Init(&CacheMasks[id][k], CacheBufs[id][k], sizeof(CacheBufs[id][k]), &rect));
 
 	WeUi_Gfx_Shape_t shape = WeUi_Gfx_Scene_Shape(pcScene, &pcScene->Items[mask]);
 	RETURN_IF_UNSUCCESS(
@@ -516,12 +515,12 @@ RET_STATE_t WeUi_Gfx_Scene_DrawToFrame(const WeUi_Gfx_Scene_t* pcScene, WEUI_GFX
 	}
 	const WeUi_Gfx_ClipRect_t panel = WeUi_Gfx_Fill_PanelClip();
 	const WeUi_Gfx_Target_t target	= {
-		 .Format = mem.Px == WEUI_GFX_FRAME_PX_RGB565 ? WEUI_GFX_TARGET_RGB565
-													  : WEUI_GFX_TARGET_RGB565_BE,
-		 .pBuf	 = (u16*)mem.pBuf + (u32)panel.Y0 * mem.Stride + (u32)panel.X0,
-		 .Stride = mem.Stride,
-		 .Rect	 = panel,
-	 };
+		.Format =
+			mem.Px == WEUI_GFX_FRAME_PX_RGB565 ? WEUI_GFX_TARGET_RGB565 : WEUI_GFX_TARGET_RGB565_BE,
+		.pBuf	= (u16*)mem.pBuf + (u32)panel.Y0 * mem.Stride + (u32)panel.X0,
+		.Stride = mem.Stride,
+		.Rect	= panel,
+	};
 	return WeUi_Gfx_Scene_DrawTo(pcScene, &target);
 }
 

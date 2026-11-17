@@ -164,8 +164,8 @@ static void WeUi_Gfx_SceneMgr_RenderIncoming(void) {
 
 	if (WeUi_Gfx_SceneMgr_IsVector(pcVtbl)) {
 		WeUi_Gfx_Scene_t* pScene = WeUi_Gfx_SceneMgr_Build(pcVtbl);
-		if (pScene && WeUi_Gfx_Scene_DrawToFrame(pScene, WEUI_GFX_FRAME_DRAWING) ==
-						  RET_STATE_SUCCESS) {
+		if (pScene &&
+			WeUi_Gfx_Scene_DrawToFrame(pScene, WEUI_GFX_FRAME_DRAWING) == RET_STATE_SUCCESS) {
 			WeUi_Gfx_SceneMgr_ShownScene = pScene;
 		}
 		WeUi_Gfx_FpsCtrl_DrawAndKeepFPS_MainFreq();

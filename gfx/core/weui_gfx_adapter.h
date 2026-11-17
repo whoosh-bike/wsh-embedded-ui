@@ -62,8 +62,8 @@ typedef enum {
 
 /** @brief How a frame keeps its pixels in memory */
 typedef enum {
-	WEUI_GFX_FRAME_PX_RAW = 0,	  /**< a WeUi_Gfx_ColorRaw_t each, as the raw accessors take them */
-	WEUI_GFX_FRAME_PX_RGB565,	  /**< 16 bits, red at the top: the raw colour cut to 5-6-5 */
+	WEUI_GFX_FRAME_PX_RAW = 0,	 /**< a WeUi_Gfx_ColorRaw_t each, as the raw accessors take them */
+	WEUI_GFX_FRAME_PX_RGB565,	 /**< 16 bits, red at the top: the raw colour cut to 5-6-5 */
 	WEUI_GFX_FRAME_PX_RGB565_BE, /**< the same, high byte first */
 } WEUI_GFX_FRAME_PX_t;
 

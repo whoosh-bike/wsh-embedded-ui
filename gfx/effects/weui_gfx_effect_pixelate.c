@@ -86,13 +86,12 @@ static void WeUi_Gfx_Effect_PixelateSpan(const WeUi_Gfx_Effect_Ctx_t* pcCtx, u32
 	*pX1 = GET_MIN(x0 + pcG->Block, (WeUi_Gfx_PtPos_t)pcCtx->Width);
 }
 
-static void WeUi_Gfx_Effect_Row_Pixelate(const WeUi_Gfx_Effect_Ctx_t* pcCtx,
-										 WeUi_Gfx_PtPos_t y) {
+static void WeUi_Gfx_Effect_Row_Pixelate(const WeUi_Gfx_Effect_Ctx_t* pcCtx, WeUi_Gfx_PtPos_t y) {
 	WeUi_Gfx_Effect_PixelateGrid_t* pG = &WeUi_Gfx_Effect_Grid;
 	WeUi_Gfx_PtPos_t width			   = (WeUi_Gfx_PtPos_t)pcCtx->Width;
 	WeUi_Gfx_PtPos_t height			   = (WeUi_Gfx_PtPos_t)pcCtx->Height;
 	/* Coarser up to halfway, finer after: a tent over the run */
-	bool oldSide = pcCtx->Progress < 0.5f;
+	bool oldSide					   = pcCtx->Progress < 0.5f;
 	ASSERT_CHECK(pcCtx->Width <= WEUI_DISPLAY_WIDTH);
 
 	if (y == 0) {
@@ -100,9 +99,9 @@ static void WeUi_Gfx_Effect_Row_Pixelate(const WeUi_Gfx_Effect_Ctx_t* pcCtx,
 		float blockMax = (float)height * WEUI_GFX_EFFECT_PIXELATE_BLOCK_SHARE;
 		pG->Block	   = (WeUi_Gfx_PtPos_t)(1.0f + (blockMax - 1.0f) * tent + 0.5f);
 		/* Blocks are laid from the centre, so the coarsest stay symmetric on the panel */
-		pG->StartX	 = (width / 2) % pG->Block - pG->Block;
-		pG->StartY	 = (height / 2) % pG->Block - pG->Block;
-		pG->MeansRow = -1;
+		pG->StartX	   = (width / 2) % pG->Block - pG->Block;
+		pG->StartY	   = (height / 2) % pG->Block - pG->Block;
+		pG->MeansRow   = -1;
 	}
 	/* Sharp again: the incoming frame as drawn */
 	if (pG->Block <= 1 && !oldSide) {

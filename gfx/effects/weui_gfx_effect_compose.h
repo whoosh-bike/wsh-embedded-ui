@@ -49,7 +49,8 @@ static inline u32 WeUi_Gfx_Effect_At(const WeUi_Gfx_FrameMem_t* pcMem, WeUi_Gfx_
 
 static inline u8* WeUi_Gfx_Effect_Byte(const WeUi_Gfx_FrameMem_t* pcMem, WeUi_Gfx_PtPos_t x,
 									   WeUi_Gfx_PtPos_t y) {
-	return (u8*)pcMem->pBuf + WeUi_Gfx_Effect_At(pcMem, x, y) * WeUi_Gfx_Adapter_FramePxBytes(pcMem);
+	return (u8*)pcMem->pBuf +
+		   WeUi_Gfx_Effect_At(pcMem, x, y) * WeUi_Gfx_Adapter_FramePxBytes(pcMem);
 }
 
 static inline void WeUi_Gfx_Effect_CopyPx(u8* pDst, const u8* pcSrc, u32 bytes) {
@@ -158,7 +159,8 @@ static inline void WeUi_Gfx_Effect_RowCopy(const WeUi_Gfx_FrameMem_t* pcSrc, WeU
 										   WeUi_Gfx_PtPos_t sx, WeUi_Gfx_PtPos_t sy,
 										   WeUi_Gfx_PtPos_t n) {
 	if (pcSrc->Px == WeUi_Gfx_Effect_Out.Px) {
-		memcpy(WeUi_Gfx_Effect_Byte(&WeUi_Gfx_Effect_Out, x, 0), WeUi_Gfx_Effect_Byte(pcSrc, sx, sy),
+		memcpy(WeUi_Gfx_Effect_Byte(&WeUi_Gfx_Effect_Out, x, 0),
+			   WeUi_Gfx_Effect_Byte(pcSrc, sx, sy),
 			   (size_t)n * WeUi_Gfx_Adapter_FramePxBytes(pcSrc));
 		return;
 	}
@@ -328,8 +330,8 @@ static inline void WeUi_Gfx_Effect_RowFade565(WeUi_Gfx_PtPos_t x, WeUi_Gfx_PtPos
 static inline void WeUi_Gfx_Effect_RowFaded(bool fromOld, WeUi_Gfx_PtPos_t x, WeUi_Gfx_PtPos_t sx,
 											WeUi_Gfx_PtPos_t sy, WeUi_Gfx_PtPos_t n, float keep) {
 	if (WeUi_Gfx_Effect_Out565()) {
-		WeUi_Gfx_Effect_RowCopy(fromOld ? &WeUi_Gfx_Effect_Mem.Old : &WeUi_Gfx_Effect_Mem.New, x, sx,
-								sy, n);
+		WeUi_Gfx_Effect_RowCopy(fromOld ? &WeUi_Gfx_Effect_Mem.Old : &WeUi_Gfx_Effect_Mem.New, x,
+								sx, sy, n);
 		WeUi_Gfx_Effect_RowFade565(x, n, keep);
 		return;
 	}

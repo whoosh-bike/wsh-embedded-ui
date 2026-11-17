@@ -1,7 +1,7 @@
 #include "weui_gfx_effect_runner.h"
-#include "weui_gfx_effect_compose.h"
 #include "log.h"
 #include "weui_gfx_adapter.h"
+#include "weui_gfx_effect_compose.h"
 #include "weui_gfx_fps_control.h"
 #if WEUI_DISPLAY_BANDS
 #include "weui_gfx_fill.h"
@@ -171,7 +171,7 @@ void WeUi_Gfx_Effect_SetBands(bool on) {
 /* One frame, band by band, each row composed straight into the band's buffer */
 static RET_STATE_t WeUi_Gfx_Effect_SendBands(const WeUi_Gfx_Effect_Ctx_t* pcCtx,
 											 WeUi_Gfx_Effect_RowCb_t row) {
-	u32 width = pcCtx->Width;
+	u32 width			   = pcCtx->Width;
 	WEUI_GFX_FRAME_PX_t px = WEUI_DISPLAY_BAND_FORMAT == WEUI_GFX_TARGET_RGB565_BE
 								 ? WEUI_GFX_FRAME_PX_RGB565_BE
 								 : WEUI_GFX_FRAME_PX_RGB565;

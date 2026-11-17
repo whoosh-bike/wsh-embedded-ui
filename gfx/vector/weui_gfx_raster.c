@@ -21,9 +21,11 @@
 /* Zero between shapes: the sweep clears every cell it reads. Cleared once before the first,
  * as WEUI_DATA_PLACEMENT may put them where the startup leaves noise. Two sets: two cores may
  * rasterise two bands of one frame at once, each with its own */
-static s32 WEUI_DATA_PLACEMENT Acc[WEUI_GFX_RASTER_SETS][WEUI_GFX_RASTER_BAND_ROWS][WEUI_GFX_RASTER_STRIDE];
+static s32 WEUI_DATA_PLACEMENT
+	Acc[WEUI_GFX_RASTER_SETS][WEUI_GFX_RASTER_BAND_ROWS][WEUI_GFX_RASTER_STRIDE];
 /* Per row, the chunks an edge touched; elsewhere a row's coverage does not change */
-static u8 WEUI_DATA_PLACEMENT Dirty[WEUI_GFX_RASTER_SETS][WEUI_GFX_RASTER_BAND_ROWS][WEUI_GFX_RASTER_CHUNKS_NUM];
+static u8 WEUI_DATA_PLACEMENT
+	Dirty[WEUI_GFX_RASTER_SETS][WEUI_GFX_RASTER_BAND_ROWS][WEUI_GFX_RASTER_CHUNKS_NUM];
 static u8 WEUI_DATA_PLACEMENT RowCov[WEUI_GFX_RASTER_SETS][WEUI_GFX_RASTER_WIDTH_MAX];
 static bool AccCleared[WEUI_GFX_RASTER_SETS];
 
@@ -52,8 +54,7 @@ static void WeUi_Gfx_Raster_MarkDirty(u8 id, u32 row, s32 xa, s32 xb) {
  *        region of w x h cells. What lies left of the region is moved onto its left edge, so
  *        it still counts in the running sum; what lies right of it lands in the padding.
  */
-static void WeUi_Gfx_Raster_AccLine(u8 id, s32 w, s32 h, float x0, float y0, float x1,
-									float y1) {
+static void WeUi_Gfx_Raster_AccLine(u8 id, s32 w, s32 h, float x0, float y0, float x1, float y1) {
 	if (y0 == y1)
 		return;
 	if ((y0 <= 0 && y1 <= 0) || (y0 >= (float)h && y1 >= (float)h))
@@ -148,8 +149,8 @@ static u8 WeUi_Gfx_Raster_Cover(s32 sum) {
 	return (u8)GET_MIN(v, WEUI_GFX_RASTER_COVER_FULL);
 }
 
-static void WeUi_Gfx_Raster_AccBand(u8 id, const WeUi_Gfx_Shape_t* pcShape, s32 rx, s32 ry,
-									s32 w, s32 h) {
+static void WeUi_Gfx_Raster_AccBand(u8 id, const WeUi_Gfx_Shape_t* pcShape, s32 rx, s32 ry, s32 w,
+									s32 h) {
 	for (u32 c = 0; c < pcShape->ContoursNum; c++) {
 		const WeUi_Gfx_PathContour_t* pcC = &pcShape->pcContours[c];
 		const WeUi_Gfx_PointF_t* pcPts	  = &pcShape->pcPts[pcC->Start];
@@ -194,7 +195,7 @@ static void WeUi_Gfx_Raster_SweepRow(u8 id, u32 r, s32 rx, s32 y, s32 w,
 		s32 start = x;
 		for (; x < end; x++) {
 			sum += pRow[x];
-			pRow[x]	  = 0;
+			pRow[x]		  = 0;
 			RowCov[id][x] = WeUi_Gfx_Raster_Cover(sum);
 		}
 		spanCb(pCtx, (WeUi_Gfx_PtPos_t)y, (WeUi_Gfx_PtPos_t)(rx + start), (u16)(end - start),

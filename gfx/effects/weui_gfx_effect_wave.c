@@ -15,8 +15,8 @@ static void WeUi_Gfx_Effect_Row_Wave(const WeUi_Gfx_Effect_Ctx_t* pcCtx, WeUi_Gf
 	/* From fully off the left edge to fully off the right, wobble included */
 	float travel =
 		((float)pcCtx->Width + 2.0f * amp) * WeUi_Gfx_Effect_Smooth(pcCtx->Progress) - amp;
-	float swell = WEUI_GFX_EFFECT_WAVE_SWELL * pcCtx->Progress;
-	float front = travel + amp * sinf((float)y * length + swell);
+	float swell			  = WEUI_GFX_EFFECT_WAVE_SWELL * pcCtx->Progress;
+	float front			  = travel + amp * sinf((float)y * length + swell);
 	/* The first column at or past the front: the old picture from there on */
 	WeUi_Gfx_PtPos_t edge = (WeUi_Gfx_PtPos_t)CUT_MIN_MAX(ceilf(front), 0.0f, (float)width);
 

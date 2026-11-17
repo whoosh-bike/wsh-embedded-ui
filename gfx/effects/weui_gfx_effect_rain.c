@@ -16,7 +16,8 @@ static void WeUi_Gfx_Effect_Row_Rain(const WeUi_Gfx_Effect_Ctx_t* pcCtx, WeUi_Gf
 		for (WeUi_Gfx_PtPos_t x = 0; x < width; x += columnPx) {
 			/* Squared: a run speeds up as it falls */
 			float run = WeUi_Gfx_Effect_ColumnRun(pcCtx, x, columnPx, WEUI_GFX_EFFECT_RAIN_SPREAD);
-			WeUi_Gfx_Effect_RainWet[x] = (WeUi_Gfx_PtPos_t)((float)pcCtx->Height * run * run + 0.5f);
+			WeUi_Gfx_Effect_RainWet[x] =
+				(WeUi_Gfx_PtPos_t)((float)pcCtx->Height * run * run + 0.5f);
 		}
 	}
 	for (WeUi_Gfx_PtPos_t x = 0; x < width; x += columnPx) {
