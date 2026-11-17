@@ -297,3 +297,30 @@ RET_STATE_t WeUi_Gfx_Stroke_Outline(const WeUi_Gfx_Path_t* pcPath,
 	}
 	return RET_STATE_SUCCESS;
 }
+
+RET_STATE_t WeUi_Gfx_Stroke_OuterOutline(const WeUi_Gfx_Path_t* pcPath,
+										 const WeUi_Gfx_StrokeStyle_t* pcStyle,
+										 WeUi_Gfx_Path_t* pOut) {
+	WeUi_Gfx_Path_Reset(pOut, NULL);
+	float width = pcStyle->Width * WeUi_Gfx_Stroke_Scale(pcStyle);
+	if (pcPath->Broken || !(width > 0.0f))
+		return RET_STATE_ERR_PARAM;
+
+	WeUi_Gfx_StrokeCtx_t ctx = {.pOut = pOut, .pcStyle = pcStyle};
+	for (u32 c = 0; c < pcPath->ContoursNum; c++) {
+		bool closed;
+		u32 n = WeUi_Gfx_Stroke_Copy(pcPath, c, &closed);
+		if (!closed)
+			continue;
+
+		/* With y down, a positive area runs clockwise on the panel: its left is inside */
+		float twice = 0.0f;
+		for (u32 i = 0; i < n; i++)
+			twice += WeUi_Gfx_Stroke_Cross(Pts[i], Pts[(i + 1u) % n]);
+		bool leftIsIn = twice > 0.0f;
+
+		/* Out by the width one way round: the shape's fill hides what is under it */
+		RETURN_IF_UNSUCCESS(WeUi_Gfx_Stroke_Loop(&ctx, n, leftIsIn, width));
+	}
+	return RET_STATE_SUCCESS;
+}

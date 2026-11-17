@@ -19,12 +19,13 @@
 #define WEUI_GFX_RASTER_RECT_PTS	4
 
 /* Zero between shapes: the sweep clears every cell it reads. Cleared once before the first,
- * as WEUI_DATA_PLACEMENT may put them where the startup leaves noise */
-static s32 WEUI_DATA_PLACEMENT Acc[WEUI_GFX_RASTER_BAND_ROWS][WEUI_GFX_RASTER_STRIDE];
+ * as WEUI_DATA_PLACEMENT may put them where the startup leaves noise. Two sets: two cores may
+ * rasterise two bands of one frame at once, each with its own */
+static s32 WEUI_DATA_PLACEMENT Acc[WEUI_GFX_RASTER_SETS][WEUI_GFX_RASTER_BAND_ROWS][WEUI_GFX_RASTER_STRIDE];
 /* Per row, the chunks an edge touched; elsewhere a row's coverage does not change */
-static u8 WEUI_DATA_PLACEMENT Dirty[WEUI_GFX_RASTER_BAND_ROWS][WEUI_GFX_RASTER_CHUNKS_NUM];
-static u8 WEUI_DATA_PLACEMENT RowCov[WEUI_GFX_RASTER_WIDTH_MAX];
-static bool AccCleared;
+static u8 WEUI_DATA_PLACEMENT Dirty[WEUI_GFX_RASTER_SETS][WEUI_GFX_RASTER_BAND_ROWS][WEUI_GFX_RASTER_CHUNKS_NUM];
+static u8 WEUI_DATA_PLACEMENT RowCov[WEUI_GFX_RASTER_SETS][WEUI_GFX_RASTER_WIDTH_MAX];
+static bool AccCleared[WEUI_GFX_RASTER_SETS];
 
 /* floorf and ceilf are library calls on some targets */
 static s32 WeUi_Gfx_Raster_Floor(float v) {
@@ -41,9 +42,9 @@ static float WeUi_Gfx_Raster_Clamp(float v, float lo, float hi) {
 	return v < lo ? lo : (v > hi ? hi : v);
 }
 
-static void WeUi_Gfx_Raster_MarkDirty(u32 row, s32 xa, s32 xb) {
+static void WeUi_Gfx_Raster_MarkDirty(u8 id, u32 row, s32 xa, s32 xb) {
 	for (s32 c = xa / WEUI_GFX_RASTER_CHUNK; c <= xb / WEUI_GFX_RASTER_CHUNK; c++)
-		Dirty[row][c] = 1;
+		Dirty[id][row][c] = 1;
 }
 
 /**
@@ -51,22 +52,25 @@ static void WeUi_Gfx_Raster_MarkDirty(u32 row, s32 xa, s32 xb) {
  *        region of w x h cells. What lies left of the region is moved onto its left edge, so
  *        it still counts in the running sum; what lies right of it lands in the padding.
  */
-static void WeUi_Gfx_Raster_AccLine(s32 w, s32 h, float x0, float y0, float x1, float y1) {
+static void WeUi_Gfx_Raster_AccLine(u8 id, s32 w, s32 h, float x0, float y0, float x1,
+									float y1) {
 	if (y0 == y1)
+		return;
+	if ((y0 <= 0 && y1 <= 0) || (y0 >= (float)h && y1 >= (float)h))
 		return;
 
 	float fw = (float)w;
 	/* Split where the segment crosses a side, so each piece is clamped whole */
 	if ((x0 < 0.0f && x1 > 0.0f) || (x0 > 0.0f && x1 < 0.0f)) {
 		float ym = y0 + (0.0f - x0) * (y1 - y0) / (x1 - x0);
-		WeUi_Gfx_Raster_AccLine(w, h, x0, y0, 0.0f, ym);
-		WeUi_Gfx_Raster_AccLine(w, h, 0.0f, ym, x1, y1);
+		WeUi_Gfx_Raster_AccLine(id, w, h, x0, y0, 0.0f, ym);
+		WeUi_Gfx_Raster_AccLine(id, w, h, 0.0f, ym, x1, y1);
 		return;
 	}
 	if ((x0 < fw && x1 > fw) || (x0 > fw && x1 < fw)) {
 		float ym = y0 + (fw - x0) * (y1 - y0) / (x1 - x0);
-		WeUi_Gfx_Raster_AccLine(w, h, x0, y0, fw, ym);
-		WeUi_Gfx_Raster_AccLine(w, h, fw, ym, x1, y1);
+		WeUi_Gfx_Raster_AccLine(id, w, h, x0, y0, fw, ym);
+		WeUi_Gfx_Raster_AccLine(id, w, h, fw, ym, x1, y1);
 		return;
 	}
 
@@ -97,7 +101,7 @@ static void WeUi_Gfx_Raster_AccLine(s32 w, s32 h, float x0, float y0, float x1, 
 	s32 yEnd = GET_MIN(WeUi_Gfx_Raster_Ceil(y1), h);
 
 	for (; y < yEnd; y++) {
-		s32* pRow	= Acc[y];
+		s32* pRow	= Acc[id][y];
 		float dy	= fminf((float)(y + 1), y1) - fmaxf((float)y, y0);
 		float xNext = WeUi_Gfx_Raster_Clamp(x + dxdy * dy, 0.0f, fw);
 		float d		= dy * dir * WEUI_GFX_RASTER_ONE;
@@ -107,7 +111,7 @@ static void WeUi_Gfx_Raster_AccLine(s32 w, s32 h, float x0, float y0, float x1, 
 		s32 xbi		= WeUi_Gfx_Raster_Ceil(xb);
 		float xaf	= (float)xai;
 
-		WeUi_Gfx_Raster_MarkDirty((u32)y, xai, GET_MAX(xai + 1, xbi));
+		WeUi_Gfx_Raster_MarkDirty(id, (u32)y, xai, GET_MAX(xai + 1, xbi));
 
 		if (xbi <= xai + 1) {
 			/* Within one cell: its area splits between it and the next by where it runs */
@@ -144,7 +148,8 @@ static u8 WeUi_Gfx_Raster_Cover(s32 sum) {
 	return (u8)GET_MIN(v, WEUI_GFX_RASTER_COVER_FULL);
 }
 
-static void WeUi_Gfx_Raster_AccBand(const WeUi_Gfx_Shape_t* pcShape, s32 rx, s32 ry, s32 w, s32 h) {
+static void WeUi_Gfx_Raster_AccBand(u8 id, const WeUi_Gfx_Shape_t* pcShape, s32 rx, s32 ry,
+									s32 w, s32 h) {
 	for (u32 c = 0; c < pcShape->ContoursNum; c++) {
 		const WeUi_Gfx_PathContour_t* pcC = &pcShape->pcContours[c];
 		const WeUi_Gfx_PointF_t* pcPts	  = &pcShape->pcPts[pcC->Start];
@@ -156,17 +161,17 @@ static void WeUi_Gfx_Raster_AccBand(const WeUi_Gfx_Shape_t* pcShape, s32 rx, s32
 				fminf(a.X, b.X) >= (float)(rx + w))
 				continue;
 
-			WeUi_Gfx_Raster_AccLine(w, h, a.X - (float)rx, a.Y - (float)ry, b.X - (float)rx,
+			WeUi_Gfx_Raster_AccLine(id, w, h, a.X - (float)rx, a.Y - (float)ry, b.X - (float)rx,
 									b.Y - (float)ry);
 		}
 	}
 }
 
 /** @brief Sum one row into spans, clearing the cells it reads */
-static void WeUi_Gfx_Raster_SweepRow(u32 r, s32 rx, s32 y, s32 w, WeUi_Gfx_Raster_SpanCb_t spanCb,
-									 void* pCtx) {
-	s32* pRow  = Acc[r];
-	u8* pDirty = Dirty[r];
+static void WeUi_Gfx_Raster_SweepRow(u8 id, u32 r, s32 rx, s32 y, s32 w,
+									 WeUi_Gfx_Raster_SpanCb_t spanCb, void* pCtx) {
+	s32* pRow  = Acc[id][r];
+	u8* pDirty = Dirty[id][r];
 	s32 sum	   = 0;
 
 	for (s32 x = 0; x < w;) {
@@ -178,9 +183,10 @@ static void WeUi_Gfx_Raster_SweepRow(u32 r, s32 rx, s32 y, s32 w, WeUi_Gfx_Raste
 
 		if (!dirty) {
 			u8 cov = WeUi_Gfx_Raster_Cover(sum);
-			if (cov > 0)
+			if (cov > 0) {
 				spanCb(pCtx, (WeUi_Gfx_PtPos_t)y, (WeUi_Gfx_PtPos_t)(rx + x), (u16)(end - x), NULL,
 					   cov);
+			}
 			x = end;
 			continue;
 		}
@@ -189,10 +195,10 @@ static void WeUi_Gfx_Raster_SweepRow(u32 r, s32 rx, s32 y, s32 w, WeUi_Gfx_Raste
 		for (; x < end; x++) {
 			sum += pRow[x];
 			pRow[x]	  = 0;
-			RowCov[x] = WeUi_Gfx_Raster_Cover(sum);
+			RowCov[id][x] = WeUi_Gfx_Raster_Cover(sum);
 		}
 		spanCb(pCtx, (WeUi_Gfx_PtPos_t)y, (WeUi_Gfx_PtPos_t)(rx + start), (u16)(end - start),
-			   &RowCov[start], 0);
+			   &RowCov[id][start], 0);
 	}
 
 	pRow[w]		= 0;
@@ -261,9 +267,9 @@ static bool WeUi_Gfx_Raster_IsPixelRect(const WeUi_Gfx_Shape_t* pcShape) {
 	return true;
 }
 
-RET_STATE_t WeUi_Gfx_Raster_FillShape(const WeUi_Gfx_Shape_t* pcShape,
-									  const WeUi_Gfx_ClipRect_t* pcClip,
-									  WeUi_Gfx_Raster_SpanCb_t spanCb, void* pCtx) {
+RET_STATE_t WeUi_Gfx_Raster_FillShapeId(const WeUi_Gfx_Shape_t* pcShape,
+										const WeUi_Gfx_ClipRect_t* pcClip,
+										WeUi_Gfx_Raster_SpanCb_t spanCb, void* pCtx, u8 id) {
 	if (pcClip->X1 - pcClip->X0 > WEUI_GFX_RASTER_WIDTH_MAX)
 		return RET_STATE_ERR_PARAM;
 
@@ -289,20 +295,26 @@ RET_STATE_t WeUi_Gfx_Raster_FillShape(const WeUi_Gfx_Shape_t* pcShape,
 		return RET_STATE_SUCCESS;
 	}
 
-	if (!AccCleared) {
-		memset(Acc, 0, sizeof(Acc));
-		memset(Dirty, 0, sizeof(Dirty));
-		AccCleared = true;
+	if (!AccCleared[id]) {
+		memset(Acc[id], 0, sizeof(Acc[id]));
+		memset(Dirty[id], 0, sizeof(Dirty[id]));
+		AccCleared[id] = true;
 	}
 
 	s32 w = rx1 - rx0;
 	for (s32 by = ry0; by < ry1; by += WEUI_GFX_RASTER_BAND_ROWS) {
 		s32 bh = GET_MIN(WEUI_GFX_RASTER_BAND_ROWS, ry1 - by);
-		WeUi_Gfx_Raster_AccBand(pcShape, rx0, by, w, bh);
+		WeUi_Gfx_Raster_AccBand(id, pcShape, rx0, by, w, bh);
 		for (s32 r = 0; r < bh; r++)
-			WeUi_Gfx_Raster_SweepRow((u32)r, rx0, by + r, w, spanCb, pCtx);
+			WeUi_Gfx_Raster_SweepRow(id, (u32)r, rx0, by + r, w, spanCb, pCtx);
 	}
 	return RET_STATE_SUCCESS;
+}
+
+RET_STATE_t WeUi_Gfx_Raster_FillShape(const WeUi_Gfx_Shape_t* pcShape,
+									  const WeUi_Gfx_ClipRect_t* pcClip,
+									  WeUi_Gfx_Raster_SpanCb_t spanCb, void* pCtx) {
+	return WeUi_Gfx_Raster_FillShapeId(pcShape, pcClip, spanCb, pCtx, 0);
 }
 
 RET_STATE_t WeUi_Gfx_Raster_Fill(const WeUi_Gfx_Path_t* pcPath, const WeUi_Gfx_ClipRect_t* pcClip,

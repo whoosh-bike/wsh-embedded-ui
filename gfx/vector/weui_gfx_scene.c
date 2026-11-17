@@ -23,12 +23,16 @@
 #define WEUI_GFX_SCENE_DAMAGE_KEPT 8
 #define WEUI_GFX_SCENE_NO_ITEM	   UINT8_MAX
 
-/* The masks rendered for the band being drawn */
+/* The masks rendered for the band being drawn. Two sets, as the rasteriser: two cores may draw
+ * two bands of one frame at once. A mask that fits its slot is rendered for its whole bounds
+ * and kept for the bands after: its shape does not change while the frame is drawn */
 static u8 WEUI_DATA_PLACEMENT
-	CacheBufs[WEUI_GFX_SCENE_MASKS_CACHED][WEUI_GFX_RASTER_WIDTH_MAX * WEUI_GFX_RASTER_BAND_ROWS];
-static WeUi_Gfx_Mask_t CacheMasks[WEUI_GFX_SCENE_MASKS_CACHED];
-static u8 CacheItem[WEUI_GFX_SCENE_MASKS_CACHED];
-static u32 CacheNext;
+	CacheBufs[WEUI_GFX_RASTER_SETS][WEUI_GFX_SCENE_MASKS_CACHED][WEUI_GFX_RASTER_WIDTH_MAX * WEUI_GFX_SCENE_MASK_ROWS];
+static WeUi_Gfx_Mask_t CacheMasks[WEUI_GFX_RASTER_SETS][WEUI_GFX_SCENE_MASKS_CACHED];
+static u8 CacheItem[WEUI_GFX_RASTER_SETS][WEUI_GFX_SCENE_MASKS_CACHED];
+static WeUi_Gfx_ClipRect_t CacheRect[WEUI_GFX_RASTER_SETS][WEUI_GFX_SCENE_MASKS_CACHED];
+static u32 CacheHash[WEUI_GFX_RASTER_SETS][WEUI_GFX_SCENE_MASKS_CACHED];
+static u32 CacheNext[WEUI_GFX_RASTER_SETS];
 
 // =================== Rectangles ===================
 
@@ -107,6 +111,10 @@ void WeUi_Gfx_Scene_Begin(WeUi_Gfx_Scene_t* pScene) {
 	pScene->ContoursNum = 0;
 	pScene->StopsNum	= 0;
 	pScene->Overflow	= false;
+}
+
+void WeUi_Gfx_Scene_Forget(WeUi_Gfx_Scene_t* pScene) {
+	pScene->Shown = false;
 }
 
 /** @brief The item's shape with its Bounds: a fill's or a mask's are the shape's own, worked out
@@ -369,29 +377,57 @@ u8 WeUi_Gfx_Scene_Damage(WeUi_Gfx_Scene_t* pScene, WeUi_Gfx_ClipRect_t* pRects, 
 
 // =================== Drawing ===================
 
-/** @brief The mask item rendered over rect, from the cache if it is there already. The slot
- *         `keep` holds another mask of the same item and is not given up for this one */
+/** @brief The mask item rendered for the band or the whole frame, from the cache if it is
+ *         there already. The slot `keep` holds another mask of the same item and is not given
+ *         up for this one */
 static RET_STATE_t WeUi_Gfx_Scene_CachedMask(const WeUi_Gfx_Scene_t* pcScene, u8 mask,
-											 const WeUi_Gfx_ClipRect_t* pcRect, u32 keep,
+											 const WeUi_Gfx_ClipRect_t* pcBand, u8 id, u32 keep,
 											 u32* pSlot) {
+	const WeUi_Gfx_ClipRect_t bounds = pcScene->Items[mask].Bounds;
+	/* The mask's whole bounds where its slot holds them: rendered once, served to every band */
+	const bool fits =
+		(bounds.X1 - bounds.X0) <= WEUI_GFX_RASTER_WIDTH_MAX &&
+		(u32)(bounds.X1 - bounds.X0) * (u32)(bounds.Y1 - bounds.Y0) <=
+			(u32)sizeof(CacheBufs[0][0]);
+	WeUi_Gfx_ClipRect_t rect = bounds;
+	if (!fits) {
+		/* The band's rows out to the slot's height, within the bounds: bands one after
+		 * another share the render. The width is the band's, as it must fit the rasteriser */
+		rect = WeUi_Gfx_Scene_Cut(bounds, pcBand);
+		const s32 rows = (s32)WEUI_GFX_SCENE_MASK_ROWS;
+		const s32 y0 = GET_MAX(((s32)rect.Y0 / rows) * rows, (s32)bounds.Y0);
+		const s32 y1 = GET_MIN(((s32)rect.Y1 + rows - 1) / rows * rows, (s32)bounds.Y1);
+		/* An unaligned damage band can span two cache rows; only expand if both fit. */
+		if ((u32)(rect.X1 - rect.X0) * (u32)(y1 - y0) <= sizeof(CacheBufs[0][0])) {
+			rect.Y0 = (WeUi_Gfx_PtPos_t)y0;
+			rect.Y1 = (WeUi_Gfx_PtPos_t)y1;
+		}
+	}
+	const u32 hash = WeUi_Gfx_Scene_MixShape(WEUI_GFX_SCENE_FNV_BASIS, pcScene,
+											 &pcScene->Items[mask]);
 	for (u32 k = 0; k < WEUI_GFX_SCENE_MASKS_CACHED; k++) {
-		if (CacheItem[k] == mask) {
+		if (CacheItem[id][k] == mask && CacheHash[id][k] == hash &&
+			CacheRect[id][k].X0 == rect.X0 && CacheRect[id][k].Y0 == rect.Y0 &&
+			CacheRect[id][k].X1 == rect.X1 && CacheRect[id][k].Y1 == rect.Y1) {
 			*pSlot = k;
 			return RET_STATE_SUCCESS;
 		}
 	}
 
-	u32 k = CacheNext++ % WEUI_GFX_SCENE_MASKS_CACHED;
+	u32 k = CacheNext[id]++ % WEUI_GFX_SCENE_MASKS_CACHED;
 	if (k == keep)
-		k = CacheNext++ % WEUI_GFX_SCENE_MASKS_CACHED;
-	CacheItem[k] = WEUI_GFX_SCENE_NO_ITEM;
-	RETURN_IF_UNSUCCESS(
-		WeUi_Gfx_Mask_Init(&CacheMasks[k], CacheBufs[k], sizeof(CacheBufs[k]), pcRect));
+		k = CacheNext[id]++ % WEUI_GFX_SCENE_MASKS_CACHED;
+	CacheItem[id][k] = WEUI_GFX_SCENE_NO_ITEM;
+	RETURN_IF_UNSUCCESS(WeUi_Gfx_Mask_Init(&CacheMasks[id][k], CacheBufs[id][k],
+										   sizeof(CacheBufs[id][k]), &rect));
 
 	WeUi_Gfx_Shape_t shape = WeUi_Gfx_Scene_Shape(pcScene, &pcScene->Items[mask]);
-	RETURN_IF_UNSUCCESS(WeUi_Gfx_Mask_AddShape(&CacheMasks[k], &shape, WEUI_GFX_PAINT_OPAQUE));
-	CacheItem[k] = mask;
-	*pSlot		 = k;
+	RETURN_IF_UNSUCCESS(
+		WeUi_Gfx_Mask_AddShapeId(&CacheMasks[id][k], &shape, WEUI_GFX_PAINT_OPAQUE, id));
+	CacheItem[id][k] = mask;
+	CacheRect[id][k] = rect;
+	CacheHash[id][k] = hash;
+	*pSlot			 = k;
 	return RET_STATE_SUCCESS;
 }
 
@@ -399,7 +435,7 @@ static RET_STATE_t WeUi_Gfx_Scene_CachedMask(const WeUi_Gfx_Scene_t* pcScene, u8
 static RET_STATE_t WeUi_Gfx_Scene_DrawItem(const WeUi_Gfx_Scene_t* pcScene,
 										   const WeUi_Gfx_SceneItem_t* pcItem,
 										   const WeUi_Gfx_ClipRect_t* pcBand,
-										   const WeUi_Gfx_Target_t* pcTarget) {
+										   const WeUi_Gfx_Target_t* pcTarget, u8 id) {
 	WeUi_Gfx_MaskUse_t uses[WEUI_GFX_SCENE_ITEM_MASKS];
 	u8 usesNum = 0;
 	u32 slot   = WEUI_GFX_SCENE_MASKS_CACHED;
@@ -412,8 +448,10 @@ static RET_STATE_t WeUi_Gfx_Scene_DrawItem(const WeUi_Gfx_Scene_t* pcScene,
 				return RET_STATE_SUCCESS;
 			continue;
 		}
-		RETURN_IF_UNSUCCESS(WeUi_Gfx_Scene_CachedMask(pcScene, pcClip->Mask, &r, slot, &slot));
-		uses[usesNum++] = (WeUi_Gfx_MaskUse_t){.pcMask = &CacheMasks[slot], .Mode = pcClip->Mode};
+		RETURN_IF_UNSUCCESS(
+			WeUi_Gfx_Scene_CachedMask(pcScene, pcClip->Mask, pcBand, id, slot, &slot));
+		uses[usesNum++] =
+			(WeUi_Gfx_MaskUse_t){.pcMask = &CacheMasks[id][slot], .Mode = pcClip->Mode};
 	}
 
 	const WeUi_Gfx_Affine_t* pcXf = pcItem->HasXf ? &pcItem->Xf : NULL;
@@ -438,18 +476,18 @@ static RET_STATE_t WeUi_Gfx_Scene_DrawItem(const WeUi_Gfx_Scene_t* pcScene,
 static RET_STATE_t WeUi_Gfx_Scene_DrawArea(const WeUi_Gfx_Scene_t* pcScene,
 										   const WeUi_Gfx_ClipRect_t* pcArea,
 										   const WeUi_Gfx_Target_t* pcTarget) {
+	const u8 id = pcTarget ? pcTarget->RasterId : 0;
 	for (s32 by = pcArea->Y0; by < pcArea->Y1; by += WEUI_GFX_RASTER_BAND_ROWS) {
 		WeUi_Gfx_ClipRect_t band = *pcArea;
 		band.Y0					 = (WeUi_Gfx_PtPos_t)by;
 		band.Y1 = (WeUi_Gfx_PtPos_t)GET_MIN(by + WEUI_GFX_RASTER_BAND_ROWS, (s32)pcArea->Y1);
-		memset(CacheItem, WEUI_GFX_SCENE_NO_ITEM, sizeof(CacheItem));
 
 		for (u32 i = 0; i < pcScene->ItemsNum; i++) {
 			const WeUi_Gfx_SceneItem_t* pcItem = &pcScene->Items[i];
 			WeUi_Gfx_ClipRect_t reach		   = WeUi_Gfx_Scene_Cut(pcItem->Bounds, &band);
 			if (pcItem->Kind == WEUI_GFX_SCENE_MASK || WeUi_Gfx_Scene_IsEmpty(&reach))
 				continue;
-			RETURN_IF_UNSUCCESS(WeUi_Gfx_Scene_DrawItem(pcScene, pcItem, &band, pcTarget));
+			RETURN_IF_UNSUCCESS(WeUi_Gfx_Scene_DrawItem(pcScene, pcItem, &band, pcTarget, id));
 		}
 	}
 	return RET_STATE_SUCCESS;
@@ -468,6 +506,23 @@ RET_STATE_t WeUi_Gfx_Scene_DrawTo(const WeUi_Gfx_Scene_t* pcScene,
 	if (pcTarget->Rect.X1 - pcTarget->Rect.X0 > WEUI_GFX_RASTER_WIDTH_MAX)
 		return RET_STATE_ERR_PARAM;
 	return WeUi_Gfx_Scene_DrawArea(pcScene, &pcTarget->Rect, pcTarget);
+}
+
+RET_STATE_t WeUi_Gfx_Scene_DrawToFrame(const WeUi_Gfx_Scene_t* pcScene, WEUI_GFX_FRAME_t frame) {
+	WeUi_Gfx_FrameMem_t mem;
+	if (!WeUi_Gfx_Adapter_FrameMem(frame, &mem) || mem.Px == WEUI_GFX_FRAME_PX_RAW) {
+		return frame == WEUI_GFX_FRAME_DRAWING ? WeUi_Gfx_Scene_Draw(pcScene, NULL)
+											   : RET_STATE_ERR_PARAM;
+	}
+	const WeUi_Gfx_ClipRect_t panel = WeUi_Gfx_Fill_PanelClip();
+	const WeUi_Gfx_Target_t target	= {
+		 .Format = mem.Px == WEUI_GFX_FRAME_PX_RGB565 ? WEUI_GFX_TARGET_RGB565
+													  : WEUI_GFX_TARGET_RGB565_BE,
+		 .pBuf	 = (u16*)mem.pBuf + (u32)panel.Y0 * mem.Stride + (u32)panel.X0,
+		 .Stride = mem.Stride,
+		 .Rect	 = panel,
+	 };
+	return WeUi_Gfx_Scene_DrawTo(pcScene, &target);
 }
 
 #if WEUI_DISPLAY_BANDS

@@ -90,6 +90,9 @@ typedef struct {
 	u16* pBuf;
 	u32 Stride;				  /**< pixels from the start of one row to the next */
 	WeUi_Gfx_ClipRect_t Rect; /**< the panel pixels it holds; pBuf[0] is (Rect.X0, Rect.Y0) */
+	u8 RasterId; /**< which set of the rasteriser's static state to use, 0 to
+				  *   WEUI_GFX_RASTER_SETS - 1: 1 for a second core drawing another band of the
+				  *   same frame at once */
 } WeUi_Gfx_Target_t;
 
 /** @brief The whole panel, as a clip */

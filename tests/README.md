@@ -44,3 +44,7 @@ the host it was recorded on.
 
 To look at a change, open the PNGs in `out/`: every 25th frame of each run, upscaled 8x with a
 gap between pixels, as the LEDs look.
+
+`make T=linear_spans` compares RGB565 and byte-swapped gradient spans pixel for pixel
+with the scalar reference path, including masks, opacity, antialiased edges, reversed gradients
+and extreme ranges. `fill_reference.c` compiles that path separately from the optimized one.

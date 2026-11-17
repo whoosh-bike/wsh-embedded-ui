@@ -1,6 +1,7 @@
 #ifndef __WEUI_GFX_SCENE_H
 #define __WEUI_GFX_SCENE_H
 
+#include "weui_gfx_adapter.h"
 #include "weui_gfx_fill.h"
 
 /**
@@ -47,6 +48,15 @@
 #ifndef WEUI_GFX_SCENE_MASKS_CACHED
 #define WEUI_GFX_SCENE_MASKS_CACHED 4
 #endif /* WEUI_GFX_SCENE_MASKS_CACHED */
+
+/**
+ * @brief Rows of a mask cache slot: WEUI_GFX_RASTER_WIDTH_MAX x this many bytes each. A mask
+ *        whose bounds fit a slot is rendered once for the whole frame; more rows than the
+ *        raster band takes means smaller masks need not be re-rendered in every band.
+ */
+#ifndef WEUI_GFX_SCENE_MASK_ROWS
+#define WEUI_GFX_SCENE_MASK_ROWS WEUI_GFX_RASTER_BAND_ROWS
+#endif /* WEUI_GFX_SCENE_MASK_ROWS */
 
 /** @brief Changed rectangles closer than this, in pixels, are given as one: a redraw, or a
  *         transfer to the panel, has a cost of its own */
@@ -121,6 +131,10 @@ void WeUi_Gfx_Scene_Init(WeUi_Gfx_Scene_t* pScene);
 /** @brief Start a frame: the items go, the last frame's fingerprints stay for Damage() */
 void WeUi_Gfx_Scene_Begin(WeUi_Gfx_Scene_t* pScene);
 
+/** @brief The panel shows something else now - another scene, a transition's last frame: the
+ *         next Damage() is the whole panel. The items stay, so a frame built already still goes */
+void WeUi_Gfx_Scene_Forget(WeUi_Gfx_Scene_t* pScene);
+
 /**
  * The builders below add an item at the end of the frame and give its number in *pIdx, which
  * may be NULL. They return RET_STATE_ERR_OVERFLOW when the scene has no room for it - the
@@ -172,6 +186,17 @@ RET_STATE_t WeUi_Gfx_Scene_DrawTo(const WeUi_Gfx_Scene_t* pcScene,
 								  const WeUi_Gfx_Target_t* pcTarget);
 
 /**
+ * @brief Draw the whole frame into one of the adapter's frames, every pixel the scene covers:
+ *        what a transition takes its pictures from. Through the frame as memory where the driver
+ *        shows it (WEUI_DISPLAY_FRAME_MEM, 565 pixels), the rasteriser writing it straight;
+ *        otherwise the drawing frame through the pixel calls, as Draw() does.
+ * @return RET_STATE_ERR_PARAM for a frame neither way reaches - one the driver keeps only for a
+ *         while, or the display frame of a driver that shows no frame as memory; the first error
+ *         drawing returns.
+ */
+RET_STATE_t WeUi_Gfx_Scene_DrawToFrame(const WeUi_Gfx_Scene_t* pcScene, WEUI_GFX_FRAME_t frame);
+
+/**
  * @brief Put the frame's changes on the panel - the rectangles Damage() gave - however the
  *        driver takes them. With a frame (WEUI_DISPLAY_BANDS 0) the last picture is copied back
  *        into the drawing frame and the rectangles drawn over it, to push as any frame is - by
@@ -183,5 +208,7 @@ RET_STATE_t WeUi_Gfx_Scene_DrawTo(const WeUi_Gfx_Scene_t* pcScene,
  */
 RET_STATE_t WeUi_Gfx_Scene_Present(const WeUi_Gfx_Scene_t* pcScene,
 								   const WeUi_Gfx_ClipRect_t* pcRects, u8 num);
+
+/* TEMP profile: per-item and per-band draw times, host bench only */
 
 #endif /* __WEUI_GFX_SCENE_H */

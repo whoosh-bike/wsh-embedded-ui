@@ -1,6 +1,8 @@
 #include "weui_gfx_fill.h"
+
 #include "weui_gfx_adapter.h"
 #include "weui_gfx_transform.h"
+#include <float.h>
 
 #define WEUI_GFX_FILL_CHANNEL_BITS 8
 #define WEUI_GFX_FILL_CHANNEL_MASK 0xFFu
@@ -61,6 +63,7 @@ typedef struct {
 	bool Probed;
 	u32 LutAt;						   /**< where a gradient's colours start in the table */
 	const WeUi_Gfx_Target_t* pcTarget; /**< NULL: the drawing frame */
+	u8 RasterId; /**< the raster set of pcTarget's, 0 for the drawing frame */
 	bool Plain; /**< one colour, opaque, no masks: an edgeless run is written as it is */
 	bool Fixed; /**< the colour does not change along a row: solid, or linear down the rows */
 	/* What the spans of one row of a buffer share, worked out with its first span */
@@ -76,10 +79,10 @@ typedef struct {
 } WeUi_Gfx_FillCtx_t;
 
 /* One fill at a time, as the rasteriser. As the driver stores the colours for the frame, as
- * 0x00BBGGRR for a buffer */
-static WeUi_Gfx_ColorRaw_t WEUI_DATA_PLACEMENT Lut[WEUI_GFX_FILL_LUT_SLOTS];
+ * 0x00BBGGRR for a buffer. Two sets: two cores may fill two bands of one frame at once */
+static WeUi_Gfx_ColorRaw_t WEUI_DATA_PLACEMENT Lut[WEUI_GFX_RASTER_SETS][WEUI_GFX_FILL_LUT_SLOTS];
 /* The same colours as a buffer's pixels, for a pixel the paint covers whole */
-static u16 WEUI_DATA_PLACEMENT Lut565[WEUI_GFX_FILL_LUT_SLOTS];
+static u16 WEUI_DATA_PLACEMENT Lut565[WEUI_GFX_RASTER_SETS][WEUI_GFX_FILL_LUT_SLOTS];
 
 /* The gradients the tables hold a buffer's colours of: a shape drawn band by band, or two shapes
  * of one gradient, need them worked out once */
@@ -91,9 +94,9 @@ typedef struct {
 	WeUi_Gfx_ColorRaw_t Colors[WEUI_GFX_FILL_KEY_STOPS];
 } WeUi_Gfx_FillLutKey_t;
 
-static WeUi_Gfx_FillLutKey_t LutKeys[WEUI_GFX_FILL_LUTS];
+static WeUi_Gfx_FillLutKey_t LutKeys[WEUI_GFX_RASTER_SETS][WEUI_GFX_FILL_LUTS];
 /* The table to give up next, round the tables in turn */
-static u32 LutNext;
+static u32 LutNext[WEUI_GFX_RASTER_SETS];
 
 WeUi_Gfx_ClipRect_t WeUi_Gfx_Fill_PanelClip(void) {
 	return (WeUi_Gfx_ClipRect_t){
@@ -192,11 +195,11 @@ static void WeUi_Gfx_Fill_Probe(WeUi_Gfx_FillCtx_t* pCtx, const WeUi_Gfx_Point_t
 	u32 base						= WeUi_Gfx_Fill_LutBase(pcPaint);
 
 	if (base == 0)
-		LutKeys[0].Valid = false;
+		LutKeys[0][0].Valid = false;
 	for (u32 i = 0; i < WeUi_Gfx_Fill_LutSize(pcPaint); i++) {
 		WeUi_Gfx_ColorPoint_t cpt = {.Pt = *pcPt, .Color = WeUi_Gfx_Fill_LutColor(pcPaint, i)};
 		WeUi_Gfx_Adapter_SetPixel(&cpt);
-		Lut[base + i] = WeUi_Gfx_Adapter_GetPixelRaw(pcPt);
+		Lut[0][base + i] = WeUi_Gfx_Adapter_GetPixelRaw(pcPt);
 	}
 	WeUi_Gfx_Adapter_SetPixelRaw(pcPt, was);
 	pCtx->Probed = true;
@@ -253,27 +256,28 @@ static bool WeUi_Gfx_Fill_KeyIs(const WeUi_Gfx_FillLutKey_t* pcKept,
 static void WeUi_Gfx_Fill_LutForBuffer(WeUi_Gfx_FillCtx_t* pCtx) {
 	const WeUi_Gfx_Paint_t* pcPaint = pCtx->pcPaint;
 	WEUI_GFX_TARGET_t format		= pCtx->pcTarget->Format;
+	const u8 id						= pCtx->RasterId;
 	u32 base						= WeUi_Gfx_Fill_LutBase(pcPaint);
 	pCtx->Probed					= true;
 
 	WeUi_Gfx_FillLutKey_t key = {0};
 	bool keep				  = base == 0 && WeUi_Gfx_Fill_KeyOf(pcPaint, format, &key);
 	for (u32 k = 0; keep && k < WEUI_GFX_FILL_LUTS; k++) {
-		if (WeUi_Gfx_Fill_KeyIs(&LutKeys[k], &key)) {
+		if (WeUi_Gfx_Fill_KeyIs(&LutKeys[id][k], &key)) {
 			pCtx->LutAt = k * WEUI_GFX_FILL_LUT_SIZE;
 			return;
 		}
 	}
 
 	if (base == 0) {
-		u32 table	   = LutNext++ % WEUI_GFX_FILL_LUTS;
+		u32 table		   = LutNext[id]++ % WEUI_GFX_FILL_LUTS;
 		base		   = table * WEUI_GFX_FILL_LUT_SIZE;
 		pCtx->LutAt	   = base;
-		LutKeys[table] = key;
+		LutKeys[id][table] = key;
 	}
 	for (u32 i = 0; i < WeUi_Gfx_Fill_LutSize(pcPaint); i++) {
-		Lut[base + i]	 = WeUi_Gfx_Fill_ToRgb(WeUi_Gfx_Fill_LutColor(pcPaint, i));
-		Lut565[base + i] = WeUi_Gfx_Fill_To565(Lut[base + i], format);
+		Lut[id][base + i]	   = WeUi_Gfx_Fill_ToRgb(WeUi_Gfx_Fill_LutColor(pcPaint, i));
+		Lut565[id][base + i]   = WeUi_Gfx_Fill_To565(Lut[id][base + i], format);
 	}
 }
 
@@ -342,7 +346,7 @@ static void WeUi_Gfx_Fill_Put(WeUi_Gfx_FillCtx_t* pCtx, WeUi_Gfx_PtPos_t x, WeUi
 
 	const WeUi_Gfx_Target_t* pcTarget = pCtx->pcTarget;
 	if (pcTarget) {
-		WeUi_Gfx_ColorRaw_t over = Lut[WeUi_Gfx_Fill_LutIdx(pCtx, x, y)];
+		WeUi_Gfx_ColorRaw_t over = Lut[pCtx->RasterId][WeUi_Gfx_Fill_LutIdx(pCtx, x, y)];
 		u16* pPx				 = WeUi_Gfx_Fill_At(pcTarget, x, y);
 		if (share < WEUI_GFX_RASTER_COVER_FULL)
 			over = WeUi_Gfx_Fill_Blend(WeUi_Gfx_Fill_From565(*pPx, pcTarget->Format), over, share);
@@ -354,7 +358,7 @@ static void WeUi_Gfx_Fill_Put(WeUi_Gfx_FillCtx_t* pCtx, WeUi_Gfx_PtPos_t x, WeUi
 	if (!pCtx->Probed)
 		WeUi_Gfx_Fill_Probe(pCtx, &pt);
 
-	WeUi_Gfx_ColorRaw_t stored = Lut[WeUi_Gfx_Fill_LutIdx(pCtx, x, y)];
+	WeUi_Gfx_ColorRaw_t stored = Lut[0][WeUi_Gfx_Fill_LutIdx(pCtx, x, y)];
 	if (share >= WEUI_GFX_RASTER_COVER_FULL) {
 		WeUi_Gfx_Adapter_SetPixelRaw(&pt, stored);
 		return;
@@ -436,18 +440,20 @@ static void WeUi_Gfx_Fill_Row(WeUi_Gfx_FillCtx_t* pCtx, WeUi_Gfx_PtPos_t y) {
 	if (!pCtx->Fixed)
 		return;
 	u32 at		   = WeUi_Gfx_Fill_LutIdx(pCtx, pcTarget->Rect.X0, y);
-	pCtx->RowWhole = Lut565[at];
-	pCtx->RowOver  = WeUi_Gfx_Fill_Channels(Lut[at]);
+	pCtx->RowWhole = Lut565[pCtx->RasterId][at];
+	pCtx->RowOver  = WeUi_Gfx_Fill_Channels(Lut[pCtx->RasterId][at]);
 }
 
 /* A span's pixels' shares of the paint, one fill at a time */
-static u8 WEUI_DATA_PLACEMENT SpanShare[WEUI_GFX_RASTER_WIDTH_MAX];
+static u8 WEUI_DATA_PLACEMENT SpanShare[WEUI_GFX_RASTER_SETS][WEUI_GFX_RASTER_WIDTH_MAX];
 /* A soft spot's coverage along a row, to go out as a span */
-static u8 WEUI_DATA_PLACEMENT SoftCov[WEUI_GFX_RASTER_WIDTH_MAX];
+static u8 WEUI_DATA_PLACEMENT SoftCov[WEUI_GFX_RASTER_SETS][WEUI_GFX_RASTER_WIDTH_MAX];
 
 /** @brief The span's shares in SpanShare, [from, to), times each mask's row */
-static void WeUi_Gfx_Fill_MaskShares(const WeUi_Gfx_FillMaskRow_t* pcRows, u32 rowsNum,
+static void WeUi_Gfx_Fill_MaskShares(WeUi_Gfx_FillCtx_t* pCtx,
+									 const WeUi_Gfx_FillMaskRow_t* pcRows, u32 rowsNum,
 									 WeUi_Gfx_PtPos_t x, s32 from, s32 to) {
+	u8* pShare = SpanShare[pCtx->RasterId];
 	for (u32 k = 0; k < rowsNum; k++) {
 		const WeUi_Gfx_FillMaskRow_t* pcRow = &pcRows[k];
 		s32 at								= x - pcRow->X0; /* the mask's pixel under pixel 0 */
@@ -456,10 +462,59 @@ static void WeUi_Gfx_Fill_MaskShares(const WeUi_Gfx_FillMaskRow_t* pcRows, u32 r
 		for (s32 i = a; i < b; i++) {
 			u32 m = pcRow->pcRow[at + i];
 			m	  = pcRow->Out ? WEUI_GFX_RASTER_COVER_FULL - m : m;
-			SpanShare[i] =
-				(u8)((SpanShare[i] * WeUi_Gfx_Fill_ToMul(m)) >> WEUI_GFX_FILL_CHANNEL_BITS);
+			pShare[i] =
+				(u8)((pShare[i] * WeUi_Gfx_Fill_ToMul(m)) >> WEUI_GFX_FILL_CHANNEL_BITS);
 		}
 	}
+}
+
+static u32 WeUi_Gfx_Fill_LinearIdx(const WeUi_Gfx_FillCtx_t* ctx, float t0, s32 i) {
+	return WeUi_Gfx_Fill_OffsetIdx(t0 + (float)i * ctx->DtDx);
+}
+
+#define WEUI_GFX_FILL_INDEX_BITS 20
+#define WEUI_GFX_FILL_INDEX_ONE	 (1u << WEUI_GFX_FILL_INDEX_BITS)
+
+static bool WeUi_Gfx_Fill_LinearBuffer(const WeUi_Gfx_FillCtx_t* ctx, u16* pixels, const u8* shares,
+									   float t0, s32 from, s32 to, bool be) {
+	const float start = (t0 + (float)from * ctx->DtDx) * WEUI_GFX_FILL_LUT_LAST + .5f;
+	const float end	  = (t0 + (float)(to - 1) * ctx->DtDx) * WEUI_GFX_FILL_LUT_LAST + .5f;
+	const float step  = ctx->DtDx * WEUI_GFX_FILL_LUT_LAST;
+	const float limit = (float)INT32_MAX / WEUI_GFX_FILL_INDEX_ONE - 2;
+	/* Include float evaluation error and accumulated Q20 truncation in the uncertain band. */
+	const float error = ((fabsf(t0) + fabsf(ctx->DtDx) * (float)to) * WEUI_GFX_FILL_LUT_LAST + 1) *
+							(8 * FLT_EPSILON * WEUI_GFX_FILL_INDEX_ONE) +
+						(float)(to - from + 2);
+	if (!(fabsf(start) < limit && fabsf(end) < limit && fabsf(step) < limit &&
+		  error < WEUI_GFX_FILL_INDEX_ONE / 2))
+		return false;
+	s32 cursor		  = (s32)(start * WEUI_GFX_FILL_INDEX_ONE);
+	const s32 advance = (s32)(step * WEUI_GFX_FILL_INDEX_ONE);
+	const u32 guard	  = (u32)error + 1;
+	for (s32 i = from; i < to; i++) {
+		const u32 share = shares[i];
+		if (share > 0) {
+			const u32 fraction = (u32)cursor & (WEUI_GFX_FILL_INDEX_ONE - 1);
+			u32 idx;
+			/* Near a bin boundary, retain the scalar path's exact float rounding. */
+			if (fraction <= guard || fraction >= WEUI_GFX_FILL_INDEX_ONE - guard)
+				idx = WeUi_Gfx_Fill_LinearIdx(ctx, t0, i);
+			else
+				idx = cursor <= 0 ? 0
+					  : cursor >= (s32)(WEUI_GFX_FILL_LUT_LAST * WEUI_GFX_FILL_INDEX_ONE)
+						  ? WEUI_GFX_FILL_LUT_LAST
+						  : (u32)cursor >> WEUI_GFX_FILL_INDEX_BITS;
+			const u32 at = ctx->LutAt + idx;
+			pixels[i] =
+				share >= WEUI_GFX_RASTER_COVER_FULL
+					? Lut565[ctx->RasterId][at]
+					: WeUi_Gfx_Fill_Blend565(pixels[i], WeUi_Gfx_Fill_Channels(Lut[ctx->RasterId][at]),
+											 share, be);
+		}
+		if (i + 1 < to)
+			cursor += advance;
+	}
+	return true;
 }
 
 /**
@@ -487,10 +542,10 @@ static void WeUi_Gfx_Fill_SpanBuffer(WeUi_Gfx_FillCtx_t* pCtx, WeUi_Gfx_PtPos_t 
 	if (rowsNum > 0 || pcCov == NULL ||
 		pCtx->Opacity != WeUi_Gfx_Fill_ToMul(WEUI_GFX_PAINT_OPAQUE)) {
 		for (s32 i = from; i < to; i++)
-			SpanShare[i] =
+			SpanShare[pCtx->RasterId][i] =
 				(u8)(((u32)(pcCov ? pcCov[i] : cov) * pCtx->Opacity) >> WEUI_GFX_FILL_CHANNEL_BITS);
-		WeUi_Gfx_Fill_MaskShares(pCtx->RowMasks, rowsNum, x, from, to);
-		pcShare = SpanShare;
+		WeUi_Gfx_Fill_MaskShares(pCtx, pCtx->RowMasks, rowsNum, x, from, to);
+		pcShare = SpanShare[pCtx->RasterId];
 	}
 
 	u16* pPx = pCtx->pRowPx + (x - pCtx->pcTarget->Rect.X0);
@@ -512,6 +567,28 @@ static void WeUi_Gfx_Fill_SpanBuffer(WeUi_Gfx_FillCtx_t* pCtx, WeUi_Gfx_PtPos_t 
 
 	bool linear = pCtx->pcPaint->Type == WEUI_GFX_PAINT_LINEAR;
 	float t0	= linear ? WeUi_Gfx_Fill_OffsetAt(pCtx, x, y) : 0.0f;
+#ifndef WEUI_GFX_FILL_TEST_REFERENCE
+	if (linear) {
+		const u32 first = WeUi_Gfx_Fill_LinearIdx(pCtx, t0, from);
+		const u32 last	= WeUi_Gfx_Fill_LinearIdx(pCtx, t0, to - 1);
+		if (first == last) {
+			const u32 at				  = pCtx->LutAt + first;
+			const u16 whole				  = Lut565[pCtx->RasterId][at];
+			const WeUi_Gfx_FillRgb_t over = WeUi_Gfx_Fill_Channels(Lut[pCtx->RasterId][at]);
+			for (s32 i = from; i < to; i++) {
+				const u32 share = pcShare[i];
+				if (share > 0) {
+					pPx[i] = share >= WEUI_GFX_RASTER_COVER_FULL
+								 ? whole
+								 : WeUi_Gfx_Fill_Blend565(pPx[i], over, share, be);
+				}
+			}
+			return;
+		}
+		if (WeUi_Gfx_Fill_LinearBuffer(pCtx, pPx, pcShare, t0, from, to, be))
+			return;
+	}
+#endif
 	for (s32 i = from; i < to; i++) {
 		u32 share = pcShare[i];
 		if (share == 0)
@@ -520,8 +597,8 @@ static void WeUi_Gfx_Fill_SpanBuffer(WeUi_Gfx_FillCtx_t* pCtx, WeUi_Gfx_PtPos_t 
 		u32 at = linear ? pCtx->LutAt + WeUi_Gfx_Fill_OffsetIdx(t0 + (float)i * pCtx->DtDx)
 						: WeUi_Gfx_Fill_LutIdx(pCtx, (WeUi_Gfx_PtPos_t)(x + i), y);
 		pPx[i] = share >= WEUI_GFX_RASTER_COVER_FULL
-					 ? Lut565[at]
-					 : WeUi_Gfx_Fill_Blend565(pPx[i], WeUi_Gfx_Fill_Channels(Lut[at]), share, be);
+					 ? Lut565[pCtx->RasterId][at]
+					 : WeUi_Gfx_Fill_Blend565(pPx[i], WeUi_Gfx_Fill_Channels(Lut[pCtx->RasterId][at]), share, be);
 	}
 }
 
@@ -530,7 +607,7 @@ static void WeUi_Gfx_Fill_Span(void* pCtx, WeUi_Gfx_PtPos_t y, WeUi_Gfx_PtPos_t 
 	const WeUi_Gfx_FillCtx_t* pcCtx = pCtx;
 	if (pcCtx->Plain && pcCov == NULL && cov == WEUI_GFX_RASTER_COVER_FULL) {
 		WeUi_Gfx_Fill_Run(WeUi_Gfx_Fill_At(pcCtx->pcTarget, x, y), len,
-						  Lut565[WEUI_GFX_FILL_LUT_SOLID]);
+						  Lut565[pcCtx->RasterId][WEUI_GFX_FILL_LUT_SOLID]);
 		return;
 	}
 	if (pcCtx->pcTarget && pcCtx->pcPaint->MasksNum <= WEUI_GFX_FILL_SPAN_MASKS) {
@@ -620,6 +697,7 @@ static RET_STATE_t WeUi_Gfx_Fill_Check(const WeUi_Gfx_Paint_t* pcPaint, WeUi_Gfx
 		.Opacity = WeUi_Gfx_Fill_ToMul(pcPaint->Opacity),
 		.Fixed	 = pcPaint->Type == WEUI_GFX_PAINT_SOLID,
 		.RowY	 = WEUI_GFX_FILL_ROW_NONE,
+		.RasterId = 0,
 	};
 	if (!WeUi_Gfx_Fill_MasksThere(pcPaint))
 		return RET_STATE_ERR_PARAM;
@@ -661,6 +739,7 @@ static RET_STATE_t WeUi_Gfx_Fill_Prepare(const WeUi_Gfx_Paint_t* pcPaint,
 		return RET_STATE_ERR_PARAM;
 
 	pCtx->pcTarget = pcTarget;
+	pCtx->RasterId = pcTarget->RasterId;
 	pCtx->Plain	   = pcPaint->Type == WEUI_GFX_PAINT_SOLID &&
 					 pcPaint->Opacity == WEUI_GFX_PAINT_OPAQUE && pcPaint->MasksNum == 0;
 	WeUi_Gfx_Fill_LutForBuffer(pCtx);
@@ -680,7 +759,7 @@ RET_STATE_t WeUi_Gfx_Fill_PaintShapeTo(const WeUi_Gfx_Shape_t* pcShape,
 	RETURN_IF_UNSUCCESS(WeUi_Gfx_Fill_Prepare(pcPaint, pcTarget, &ctx));
 
 	WeUi_Gfx_ClipRect_t clip = WeUi_Gfx_Fill_Clip(pcClip, pcPaint, pcTarget);
-	return WeUi_Gfx_Raster_FillShape(pcShape, &clip, WeUi_Gfx_Fill_Span, &ctx);
+	return WeUi_Gfx_Raster_FillShapeId(pcShape, &clip, WeUi_Gfx_Fill_Span, &ctx, ctx.RasterId);
 }
 
 RET_STATE_t WeUi_Gfx_Fill_PaintShape(const WeUi_Gfx_Shape_t* pcShape,
@@ -764,6 +843,7 @@ RET_STATE_t WeUi_Gfx_Fill_SoftTo(const WeUi_Gfx_Soft_t* pcSoft, const WeUi_Gfx_C
 	float du	= inv.A * invRx;
 	float dv	= inv.B * invRy;
 	/* A row's coverage at a time, out as spans: the masks and the blend go the quick way */
+	u8* pCov = SoftCov[ctx.RasterId];
 	for (s32 y = y0; y < y1; y++) {
 		for (s32 xs = x0; xs < x1; xs += WEUI_GFX_RASTER_WIDTH_MAX) {
 			s32 n					  = GET_MIN(x1 - xs, WEUI_GFX_RASTER_WIDTH_MAX);
@@ -773,12 +853,12 @@ RET_STATE_t WeUi_Gfx_Fill_SoftTo(const WeUi_Gfx_Soft_t* pcSoft, const WeUi_Gfx_C
 			float u0				  = (p.X - pcSoft->Centre.X) * invRx;
 			float v0				  = (p.Y - pcSoft->Centre.Y) * invRy;
 			for (s32 i = 0; i < n; i++) {
-				float u	   = u0 + (float)i * du;
-				float v	   = v0 + (float)i * dv;
-				float q	   = 1.0f - u * u - v * v;
-				SoftCov[i] = q > 0.0f ? (u8)(q * q * WEUI_GFX_RASTER_COVER_FULL) : 0u;
+				float u	 = u0 + (float)i * du;
+				float v	 = v0 + (float)i * dv;
+				float q	 = 1.0f - u * u - v * v;
+				pCov[i] = q > 0.0f ? (u8)(q * q * WEUI_GFX_RASTER_COVER_FULL) : 0u;
 			}
-			WeUi_Gfx_Fill_Span(&ctx, (WeUi_Gfx_PtPos_t)y, (WeUi_Gfx_PtPos_t)xs, (u16)n, SoftCov, 0);
+			WeUi_Gfx_Fill_Span(&ctx, (WeUi_Gfx_PtPos_t)y, (WeUi_Gfx_PtPos_t)xs, (u16)n, pCov, 0);
 		}
 	}
 	return RET_STATE_SUCCESS;

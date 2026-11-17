@@ -722,6 +722,153 @@ static void Test_SceneMgrTimeouts(void) {
 	CHECK(WeUi_Gfx_SceneMgr_GetCurScene() == 0, "PlayIntoActive did not start the time over");
 }
 
+// =================== Scene manager: vector scenes ===================
+
+#define TEST_VECTOR_TURNS 40
+
+/* Two vector scenes: a background each and a square that steps a pixel right every frame */
+static WeUi_Gfx_Scene_t VecScene[2];
+static u32 VecBuilds[2];
+static float VecFirstDt[2];
+static u32 VecPresents;
+static u32 VecOpens;
+static u32 VecCloses;
+static u32 VecOverlays;
+static bool VecFramesOk;
+static WeUi_Gfx_Path_t VecPath;
+
+static void VecRect(WeUi_Gfx_Scene_t* pScene, float x0, float y0, float x1, float y1,
+					WeUi_Gfx_Color_t color) {
+	WeUi_Gfx_Path_Reset(&VecPath, NULL);
+	WeUi_Gfx_Path_Rect(&VecPath, x0, y0, x1, y1);
+	WeUi_Gfx_Paint_t paint = WeUi_Gfx_Paint_Solid(color);
+	CHECK(WeUi_Gfx_Scene_Fill(pScene, &VecPath, &paint, NULL) == RET_STATE_SUCCESS,
+		  "a vector scene refused a rect");
+}
+
+static u32 VecSquareX(u32 scene) {
+	return VecBuilds[scene] % (WEUI_DISPLAY_WIDTH - 2);
+}
+
+static WeUi_Gfx_Scene_t* VecBuild(u32 scene, float dt, WeUi_Gfx_Color_t background) {
+	if (VecBuilds[scene]++ == 0)
+		VecFirstDt[scene] = dt;
+	WeUi_Gfx_Scene_t* pScene = &VecScene[scene];
+	const float w = WEUI_DISPLAY_WIDTH, h = WEUI_DISPLAY_HEIGHT, x = (float)VecSquareX(scene);
+	WeUi_Gfx_Scene_Begin(pScene);
+	VecRect(pScene, 0.0f, 0.0f, w, h, background);
+	VecRect(pScene, x, 0.0f, x + 2.0f, 2.0f, Rgb(255, 255, 255));
+	return pScene;
+}
+
+static WeUi_Gfx_Scene_t* VecA_Build(float dt) {
+	return VecBuild(0, dt, Rgb(0, 0, 255));
+}
+
+static WeUi_Gfx_Scene_t* VecB_Build(float dt) {
+	return VecBuild(1, dt, Rgb(0, 255, 0));
+}
+
+static void Vec_Overlay(WeUi_Gfx_Scene_t* pScene) {
+	const float w = WEUI_DISPLAY_WIDTH, h = WEUI_DISPLAY_HEIGHT;
+	VecOverlays++;
+	VecRect(pScene, w - 2.0f, h - 2.0f, w, h, Rgb(255, 0, 255));
+}
+
+static RET_STATE_t Vec_Present(const WeUi_Gfx_Scene_t* pcScene, const WeUi_Gfx_ClipRect_t* pcRects,
+							   u8 num) {
+	VecPresents++;
+	RET_STATE_t rs = WeUi_Gfx_Scene_Present(pcScene, pcRects, num);
+	WeUi_Gfx_Adapter_DrawFrame();
+	return rs;
+}
+
+static bool Vec_FramesOpen(void) {
+	VecOpens++;
+	return VecFramesOk;
+}
+
+static void Vec_FramesClose(void) {
+	VecCloses++;
+}
+
+static const WeUi_Gfx_SceneVtbl_t VecA				= {.Build = VecA_Build, .Fps = 30};
+static const WeUi_Gfx_SceneVtbl_t VecB				= {.Build = VecB_Build, .Fps = 30};
+static const WeUi_Gfx_SceneVtbl_t* const VecScenes[] = {&VecA, &VecB};
+
+static void Vec_Reset(void) {
+	Sim_Setup();
+	memset(VecBuilds, 0, sizeof(VecBuilds));
+	memset(VecFirstDt, 0, sizeof(VecFirstDt));
+	VecPresents = VecOpens = VecCloses = VecOverlays = 0;
+	TransitionCalls									 = 0;
+	VecFramesOk										 = true;
+	for (u32 i = 0; i < NUM_ELEMENTS(VecScene); i++)
+		WeUi_Gfx_Scene_Init(&VecScene[i]);
+}
+
+static void Vec_Run(void) {
+	for (u32 turn = 0; turn < TEST_VECTOR_TURNS; turn++) {
+		u32 sleepMs = WeUi_Gfx_SceneMgr_Poll();
+		Sim_DelayMs((sleepMs == WEUI_GFX_SCENEMGR_SLEEP_FOREVER || !sleepMs) ? 1 : sleepMs);
+	}
+}
+
+/* Built every frame, the first with no time behind it; what changed reaches the panel, the
+ * overlay's items with it */
+static void Test_SceneMgrVector(void) {
+	Vec_Reset();
+	WeUi_Gfx_SceneMgrCfg_t cfg = {.Scenes		= VecScenes,
+								  .SceneCount	= NUM_ELEMENTS(VecScenes),
+								  .OverlayItems = Vec_Overlay};
+	WeUi_Gfx_SceneMgr_Init(&cfg);
+	Vec_Run();
+
+	CHECK(VecBuilds[0] > 2 && VecOverlays == VecBuilds[0], "%u builds, %u overlays", VecBuilds[0],
+		  VecOverlays);
+	CHECK(VecFirstDt[0] == 0.0f, "the first frame came %.3f s after nothing", VecFirstDt[0]);
+	CHECK(PixelAt(WEUI_DISPLAY_WIDTH / 2, WEUI_DISPLAY_HEIGHT - 1) == Stored(Rgb(0, 0, 255)),
+		  "no background");
+	CHECK(PixelAt(VecSquareX(0), 0) == Stored(Rgb(255, 255, 255)), "the square not where it went");
+	CHECK(PixelAt(WEUI_DISPLAY_WIDTH - 1, WEUI_DISPLAY_HEIGHT - 1) == Stored(Rgb(255, 0, 255)),
+		  "no overlay");
+}
+
+/* A transition takes the frames and gives them back; refused them, the scene cuts in. Whatever
+ * came between, the next frame goes whole - a cut back to a scene shown before included */
+static void Test_SceneMgrVectorTransition(void) {
+	Vec_Reset();
+	WeUi_Gfx_SceneMgrCfg_t cfg = {.Scenes	   = VecScenes,
+								  .SceneCount  = NUM_ELEMENTS(VecScenes),
+								  .OnInput	   = Nav_OnInput,
+								  .Present	   = Vec_Present,
+								  .FramesOpen  = Vec_FramesOpen,
+								  .FramesClose = Vec_FramesClose};
+	WeUi_Gfx_SceneMgr_Init(&cfg);
+	Vec_Run();
+	CHECK(VecPresents > 0 && VecOpens == 0, "%u presents, frames taken %u times", VecPresents,
+		  VecOpens);
+
+	Nav_Post(NAV_GO_WITH);
+	CHECK(TransitionCalls == 1 && VecOpens == 1 && VecCloses == 1,
+		  "%u transitions, frames taken %u, given back %u", TransitionCalls, VecOpens, VecCloses);
+	CHECK(PixelAt(WEUI_DISPLAY_WIDTH / 2, WEUI_DISPLAY_HEIGHT - 1) == Stored(Rgb(0, 255, 0)),
+		  "the scene the transition went into is not on the panel");
+
+	WeUi_Gfx_SceneMgr_RequestScene(0);
+	WeUi_Gfx_SceneMgr_Poll();
+	CHECK(PixelAt(WEUI_DISPLAY_WIDTH / 2, WEUI_DISPLAY_HEIGHT - 1) == Stored(Rgb(0, 0, 255)),
+		  "back on a scene shown before, only its changes were drawn");
+
+	VecFramesOk = false;
+	Nav_Post(NAV_GO_WITH);
+	CHECK(TransitionCalls == 1 && VecOpens == 2 && VecCloses == 1,
+		  "refused frames: %u transitions, given back %u", TransitionCalls, VecCloses);
+	CHECK(WeUi_Gfx_SceneMgr_GetCurScene() == 1 &&
+			  PixelAt(WEUI_DISPLAY_WIDTH / 2, WEUI_DISPLAY_HEIGHT - 1) == Stored(Rgb(0, 255, 0)),
+		  "refused frames, the scene did not cut in");
+}
+
 // =================== QR ===================
 
 #if WEUI_USE_COMPONENT__WIDGET_QR
@@ -2025,6 +2172,49 @@ static void Test_SceneErrors(void) {
 		  "an overflowed frame is not the whole panel");
 }
 
+static void Test_SceneMaskBands(void) {
+	Sim_Setup();
+	WeUi_Gfx_Scene_Init(&TestScene);
+	const u8 fill = SceneRect(0, 0, WEUI_DISPLAY_WIDTH, WEUI_DISPLAY_HEIGHT, Rgb(200, 0, 0));
+	u8 mask;
+	CHECK(WeUi_Gfx_Scene_Mask(&TestScene, &TestPath, &mask) == RET_STATE_SUCCESS,
+		  "wide scene mask");
+	CHECK(WeUi_Gfx_Scene_Clip(&TestScene, fill, mask, WEUI_GFX_MASK_IN) == RET_STATE_SUCCESS,
+		  "wide scene mask clip");
+
+	const size_t size = WEUI_DISPLAY_WIDTH * WEUI_GFX_RASTER_BAND_ROWS;
+	u16* pixels = malloc(size * sizeof(*pixels));
+	CHECK(pixels != NULL, "wide mask target buffer");
+	if (!pixels)
+		return;
+
+	const u16 red = Px565(Given(Rgb(200, 0, 0)));
+	for (s16 y = 1; y < WEUI_DISPLAY_HEIGHT; y++) {
+		const WeUi_Gfx_Target_t target = {
+			.Format = WEUI_GFX_TARGET_RGB565,
+			.pBuf = pixels,
+			.Stride = WEUI_DISPLAY_WIDTH,
+			.Rect = {
+				.X0 = 0,
+				.Y0 = y,
+				.X1 = WEUI_DISPLAY_WIDTH,
+				.Y1 = GET_MIN(y + WEUI_GFX_RASTER_BAND_ROWS, WEUI_DISPLAY_HEIGHT),
+			},
+		};
+		const RET_STATE_t rs = WeUi_Gfx_Scene_DrawTo(&TestScene, &target);
+		CHECK(rs == RET_STATE_SUCCESS, "wide mask at y=%d refused: %d", y, rs);
+		if (rs != RET_STATE_SUCCESS)
+			continue;
+
+		u32 wrong = 0;
+		for (size_t i = 0; i < (size_t)WEUI_DISPLAY_WIDTH * (target.Rect.Y1 - y); i++)
+			wrong += pixels[i] != red;
+		CHECK(wrong == 0, "wide mask at y=%d: %u wrong pixels", y, wrong);
+	}
+
+	free(pixels);
+}
+
 static void FillTarget(u16* pBuf, WEUI_GFX_TARGET_t format) {
 	for (u32 i = 0; i < NUM_ELEMENTS(TargetBuf); i++)
 		pBuf[i] = TEST_TARGET_SENTINEL;
@@ -2070,6 +2260,149 @@ static void Test_TargetFill(void) {
 		  "a target with rows shorter than it");
 }
 
+RET_STATE_t WeUi_Ref_Fill_PaintShapeTo(const WeUi_Gfx_Shape_t* shape, const WeUi_Gfx_Paint_t* paint,
+									   const WeUi_Gfx_ClipRect_t* clip,
+									   const WeUi_Gfx_Target_t* target);
+
+static void Test_LinearSpans(void) {
+	Sim_Setup();
+	const size_t size = WEUI_DISPLAY_WIDTH * WEUI_DISPLAY_HEIGHT;
+	u16* actual		  = malloc(size * sizeof(*actual));
+	u16* expected	  = malloc(size * sizeof(*expected));
+	u8* coverage	  = malloc(size);
+	CHECK(actual && expected && coverage, "linear reference buffers");
+	if (!(actual && expected && coverage)) {
+		free(actual);
+		free(expected);
+		free(coverage);
+		return;
+	}
+	const WeUi_Gfx_ClipRect_t panel = WeUi_Gfx_Fill_PanelClip();
+	WeUi_Gfx_Mask_t mask;
+	CHECK(WeUi_Gfx_Mask_Init(&mask, coverage, size, &panel) == RET_STATE_SUCCESS, "linear mask");
+	for (size_t i = 0; i < size; i++)
+		coverage[i] = (u8)(i * 73 + 17);
+	const WeUi_Gfx_MaskUse_t use[] = {
+		{
+			.pcMask = &mask,
+			.Mode	= WEUI_GFX_MASK_IN,
+		},
+		{
+			.pcMask = &mask,
+			.Mode	= WEUI_GFX_MASK_OUT,
+		},
+	};
+	const WeUi_Gfx_PaintStop_t stops[] = {
+		{
+			.Offset = 0,
+			.Color	= Rgb(243, 19, 71),
+		},
+		{
+			.Offset = .47f,
+			.Color	= Rgb(22, 119, 241),
+		},
+		{
+			.Offset = 1,
+			.Color	= Rgb(251, 237, 11),
+		},
+	};
+	const float slopes[] = {
+		-.0000001f, -.0001f, -.0123f, -.31f, -4.3f, .0000001f, .0001f, .0123f, .31f, 4.3f,
+	};
+	for (u32 variant = 0; variant < 160; variant++) {
+		const float angle		   = (float)variant * .731f;
+		const WeUi_Gfx_Affine_t xf = WeUi_Gfx_Affine_Rotate(angle);
+		WeUi_Gfx_Path_Reset(&TestPath, NULL);
+		WeUi_Gfx_Path_Ellipse(&TestPath, WEUI_DISPLAY_WIDTH * .5f, WEUI_DISPLAY_HEIGHT * .5f,
+							  WEUI_DISPLAY_WIDTH * .43f, WEUI_DISPLAY_HEIGHT * .41f);
+		const WeUi_Gfx_Shape_t shape = WeUi_Gfx_Path_Shape(&TestPath);
+		WeUi_Gfx_Paint_t paint		 = {
+			.Type	  = WEUI_GFX_PAINT_LINEAR,
+			.pcStops  = stops,
+			.StopsNum = NUM_ELEMENTS(stops),
+			.P0 =
+				{
+					.X = -7.813f + (float)variant * .217f,
+					.Y = 3.013f,
+				},
+			.P1 =
+				{
+					.X = 11.31f,
+					.Y = -5.13f + slopes[variant % NUM_ELEMENTS(slopes)],
+				},
+			.pcXf	  = &xf,
+			.Opacity  = variant % 4 == 0   ? 255
+						: variant % 4 == 1 ? 183
+						: variant % 4 == 2 ? 1
+										   : 0,
+			.pcMasks  = variant % 3 ? use : NULL,
+			.MasksNum = variant % 3,
+		};
+		/* Nearly vertical paints exercise spans whose LUT index is constant across a row. */
+		if (variant < NUM_ELEMENTS(slopes)) {
+			paint.P0 = (WeUi_Gfx_PointF_t){
+				.X = 0,
+				.Y = -.31f,
+			};
+			paint.P1 = (WeUi_Gfx_PointF_t){
+				.X = slopes[variant],
+				.Y = 21.789f,
+			};
+			paint.pcXf = NULL;
+		}
+		if (variant >= 144) {
+			paint.Opacity = variant / 4 % 2 ? 173 : 255;
+			paint.pcXf	  = NULL;
+			paint.P0	  = (WeUi_Gfx_PointF_t){
+				.X = WEUI_DISPLAY_WIDTH * .5f + .000004f,
+				.Y = 0,
+			};
+			paint.P1 = (WeUi_Gfx_PointF_t){
+				.X = paint.P0.X + .00001f,
+				.Y = 0,
+			};
+			if (variant % 4 == 0) {
+				paint.P0.X = .5f;
+				paint.P1.X = 255.5f;
+			} else if (variant % 4 == 1) {
+				paint.P0.X = 255.5f;
+				paint.P1.X = .5f;
+			} else if (variant % 4 == 2) {
+				paint.P0.X = 1e6f;
+				paint.P1.X = 1e6f + .25f;
+			}
+		}
+		for (u8 endian = 0; endian < 2; endian++) {
+			for (size_t i = 0; i < size; i++)
+				actual[i] = expected[i] = (u16)(i * 12973 + variant * 37);
+			WeUi_Gfx_Target_t target = {
+				.Format = endian ? WEUI_GFX_TARGET_RGB565_BE : WEUI_GFX_TARGET_RGB565,
+				.pBuf	= actual,
+				.Stride = WEUI_DISPLAY_WIDTH,
+				.Rect =
+					{
+						.X0 = 2,
+						.Y0 = 1,
+						.X1 = WEUI_DISPLAY_WIDTH - 1,
+						.Y1 = WEUI_DISPLAY_HEIGHT - 1,
+					},
+			};
+			CHECK(WeUi_Gfx_Fill_PaintShapeTo(&shape, &paint, NULL, &target) == RET_STATE_SUCCESS,
+				  "linear optimized paint %u/%u", variant, endian);
+			target.pBuf = expected;
+			CHECK(WeUi_Ref_Fill_PaintShapeTo(&shape, &paint, NULL, &target) == RET_STATE_SUCCESS,
+				  "linear reference paint %u/%u", variant, endian);
+			size_t i = 0;
+			while (i < size && actual[i] == expected[i])
+				i++;
+			CHECK(i == size, "linear %u/%u pixel %zu differs: %04x / %04x", variant, endian, i,
+				  i < size ? actual[i] : 0, i < size ? expected[i] : 0);
+		}
+	}
+	free(actual);
+	free(expected);
+	free(coverage);
+}
 /* A scene into a buffer: band by band it is the same as whole, and it is the frame's picture
  * but for the last bits of where see-through layers meet - each blended in rounds to 565, in
  * the frame to 8 bits, and a few layers deep that adds up */
@@ -2166,6 +2499,19 @@ static void BandsSeeBands(void) {
 	BandsSee(Shown());
 }
 
+static void BandsSampleRow(const WeUi_Gfx_Effect_Ctx_t* ctx, s16 y) {
+	WeUi_Gfx_Effect_RowSample(ctx, -1, 0, y, true);
+	WeUi_Gfx_Effect_RowSample(ctx, (s16)ctx->Width, 0, y, true);
+	for (s16 x = 0; x < ctx->Width; x++) {
+		const bool old = ctx->Progress < 1;
+		WeUi_Gfx_Effect_RowSample(ctx, x, old ? (s16)(ctx->Width - x - 1) : x, old ? y + 1 : y,
+								  old);
+	}
+}
+
+static RET_STATE_t BandsSample(void) {
+	return WeUi_Gfx_Effect_RunRows(BandsSampleRow, NULL, TEST_BANDS_FRAMES, NULL, Render_BandsNew);
+}
 static RET_STATE_t BandsFade(void) {
 	return WeUi_Gfx_Effect_Fade(Render_BandsNew, TEST_BANDS_FRAMES);
 }
@@ -2256,6 +2602,7 @@ static void Test_TransitionsInBands(void) {
 		{"wave", BandsWave, 1},			  {"rain", BandsRain, 1},		  {"melt", BandsMelt, 1},
 		{"zoom", BandsZoom, 1},			  {"rotate", BandsRotate, 1},
 		{"pixelate", BandsPixelate, 1},
+        {"row_sample", BandsSample, 1},
 	};
 	u64 inPlace[TEST_BANDS_FRAMES], inBands[TEST_BANDS_FRAMES];
 
@@ -2312,7 +2659,9 @@ static const Test_t Tests[] = {
 	{"scene_fingerprint", Test_SceneFingerprint},
 	{"scene_redraw", Test_SceneRedraw},
 	{"target_fill", Test_TargetFill},
+	{"linear_spans", Test_LinearSpans},
 	{"scene_to_buffer", Test_SceneToBuffer},
+	{"scene_mask_bands", Test_SceneMaskBands},
 	{"text_width", Test_TextWidthConsistency},
 	{"utf8", Test_Utf8FromCodePoint},
 	{"text_no_font", Test_TextNoFont},
@@ -2337,6 +2686,8 @@ static const Test_t Tests[] = {
 	{"scenemgr_transitions", Test_SceneMgrTransitions},
 	{"scenemgr_timeouts", Test_SceneMgrTimeouts},
 	{"scenemgr_trace", Test_SceneMgrTrace},
+	{"scenemgr_vector", Test_SceneMgrVector},
+	{"scenemgr_vector_transition", Test_SceneMgrVectorTransition},
 #if WEUI_DISPLAY_BANDS && WEUI_DISPLAY_FRAME_MEM
 	{"transitions_in_bands", Test_TransitionsInBands},
 #endif /* WEUI_DISPLAY_BANDS && WEUI_DISPLAY_FRAME_MEM */

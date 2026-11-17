@@ -65,6 +65,7 @@ Poll()
   scene timeout, if due -> cfg.OnTimeout()
   if a frame is due:
     scene Render()          one frame, no clear and no push
+    or vector scene Build(dt) -> Damage() -> Present()
     cfg.Overlay()           optional, on top of the scene
     clear or copy frame, DrawFrame()
     schedule the next frame from the scene's Fps
@@ -103,11 +104,28 @@ Unlike the rest of the library, the vector fill blends coverage through the raw 
 accessors: the stored pixels may already have been through the driver's brightness LUT,
 and running the blend through `SetPixel` would scale them a second time.
 
+The scene manager draws a vector scene too: `Build(dt)` gives the frame, `Damage()` finds
+what changed and `Present()` puts it on the panel. A transition into or out of such a scene
+can borrow the driver's frames (`cfg.FramesOpen` / `FramesClose`) and draw the scene whole
+into them with `WeUi_Gfx_Scene_DrawToFrame()`. `cfg.OverlayItems` adds items over every
+vector scene, `cfg.Present` lets a driver push the frame its own way.
+
+### Two cores at once
+
+A frame's bands may be drawn by two cores concurrently. `WeUi_Gfx_Target_t` carries a
+`RasterId`; the rasteriser accumulator, span rows, gradient tables and mask cache are kept
+in `WEUI_GFX_RASTER_SETS` sets (1 by default, 2 for two cores), one per id. The host splits
+the damage rectangles into row ranges, gives each core a target with its own id, and joins
+the cores before the frame goes out. Two targets with different ids draw the same pixels;
+a host test draws a frame with each id and holds one to the other.
+
 ## Scenes
 
 A scene is a `WeUi_Gfx_SceneVtbl_t` (see `weui_gfx_scenemgr.h`):
 
 - `Render(RefPt)` draws one frame. It must not clear or push the frame.
+- `Build(dt)` replaces `Render` for a vector scene: it builds a `WeUi_Gfx_Scene_t` from
+  scratch, `dt` seconds after the previous frame, and the engine presents only what changed.
 - `Fps` caps the render rate; `Fps <= 0` renders once on `Enter()` and never self-ticks.
 - `Enter()` / `Exit()` set up and tear down per-scene state.
 - `OnInput()` handles input where it differs from the app-wide `cfg.OnInput`.
@@ -223,8 +241,8 @@ panel size, the colour scheme and the platform bindings.
 | Components | `WEUI_USE_COMPONENT__IMAGE`, `_IMAGE_DITHER`, `_IMAGE_COMPRESS`, `_WIDGET_QR` |
 | Asset storage | `WEUI_FS_USE_INT_STORAGE`, `_EXT_STORAGE`, `_FAT_SYNC`, `WEUI_FS_JSON_*` |
 | FPS | `WEUI_FPS_CTRL_MIN/DEF/MAX_RENDER_FREQ` (1 / 60 / 120) |
-| Scene manager | `WEUI_GFX_SCENEMGR_QUEUE_DEPTH` (8), `_INPUT_MAX_BYTES` (16), `_PACE_FROM_FRAME_END` (0) |
-| Vector core | `WEUI_GFX_AFFINE_STACK_DEPTH` (8), `_PATH_PTS_MAX` (256), `_PATH_CONTOURS_MAX` (16), `_PATH_TOLERANCE` (0.2), `_RASTER_WIDTH_MAX` (panel width), `_RASTER_BAND_ROWS` (16), `_FILL_LUTS` (1), `_SCENE_ITEMS_MAX` (32), `_SCENE_PTS_MAX` (512), `_SCENE_CONTOURS_MAX` (64), `_SCENE_STOPS_MAX` (32), `_SCENE_MASKS_CACHED` (4), `_SCENE_DAMAGE_GAP` (2), `_SCENE_DAMAGE_ALIGN` (1) |
+| Scene manager | `WEUI_GFX_SCENEMGR_QUEUE_DEPTH` (8), `_INPUT_MAX_BYTES` (16), `_DAMAGE_RECTS` (8), `_PACE_FROM_FRAME_END` (0) |
+| Vector core | `WEUI_GFX_AFFINE_STACK_DEPTH` (8), `_PATH_PTS_MAX` (256), `_PATH_CONTOURS_MAX` (16), `_PATH_TOLERANCE` (0.2), `_RASTER_WIDTH_MAX` (panel width), `_RASTER_BAND_ROWS` (16), `_RASTER_SETS` (1), `_FILL_LUTS` (1), `_SCENE_ITEMS_MAX` (32), `_SCENE_PTS_MAX` (512), `_SCENE_CONTOURS_MAX` (64), `_SCENE_STOPS_MAX` (32), `_SCENE_MASKS_CACHED` (4), `_SCENE_DAMAGE_GAP` (2), `_SCENE_DAMAGE_ALIGN` (1) |
 | Platform | `WEUI_USE_RTOS` / `WEUI_USE_BAREMETAL`, `WEUI_USE_CUSTOM_ALLOC`, `WEUI_TICK_GET_MS_CNT()`, `WEUI_DELAY_MS()`, `WEUI_DELAY_UNTIL_MS()`, `WEUI_ENTER/EXIT_CRITICAL()` |
 | Build | `WEUI_USE_IND` (1), `WEUI_USE_DEMO` (1) in `weui.mk` |
 

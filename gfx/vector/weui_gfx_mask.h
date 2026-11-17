@@ -51,6 +51,10 @@ RET_STATE_t WeUi_Gfx_Mask_AddPath(WeUi_Gfx_Mask_t* pMask, const WeUi_Gfx_Path_t*
 RET_STATE_t WeUi_Gfx_Mask_AddShape(WeUi_Gfx_Mask_t* pMask, const WeUi_Gfx_Shape_t* pcShape,
 								   u8 opacity);
 
+/** @brief WeUi_Gfx_Mask_AddShape() in raster set `id`, as WeUi_Gfx_Raster_FillShapeId() */
+RET_STATE_t WeUi_Gfx_Mask_AddShapeId(WeUi_Gfx_Mask_t* pMask, const WeUi_Gfx_Shape_t* pcShape,
+									 u8 opacity, u8 id);
+
 /** @brief Cut the shape away, at an opacity. @return as WeUi_Gfx_Mask_AddPath() */
 RET_STATE_t WeUi_Gfx_Mask_CutPath(WeUi_Gfx_Mask_t* pMask, const WeUi_Gfx_Path_t* pcPath,
 								  u8 opacity);

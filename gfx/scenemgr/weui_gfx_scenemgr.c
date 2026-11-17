@@ -48,6 +48,14 @@ static bool WeUi_Gfx_SceneMgr_HasScene;
 static WeUi_Gfx_SceneMgr_TransitionFn_t WeUi_Gfx_SceneMgr_PendingFn;
 static u32 WeUi_Gfx_SceneMgr_PendingScene;
 
+/* The vector scene whose last frame is on the panel, NULL under a drawn one; its last Build, for
+ * the next one's dt; and whether the panel has shown anything else since, a switch or a
+ * transition, so that the next frame goes whole */
+static WeUi_Gfx_Scene_t* WeUi_Gfx_SceneMgr_ShownScene;
+static u32 WeUi_Gfx_SceneMgr_BuiltMs;
+static bool WeUi_Gfx_SceneMgr_HasBuilt;
+static bool WeUi_Gfx_SceneMgr_Whole;
+
 /* When the active scene's time is up - see cfg.TimeoutsMs */
 static u32 WeUi_Gfx_SceneMgr_TimeoutAtMs;
 static bool WeUi_Gfx_SceneMgr_TimeoutArmed;
@@ -102,12 +110,69 @@ static void WeUi_Gfx_SceneMgr_DrawOverlay(void) {
 	WeUi_Gfx_SceneMgr_Cfg.Overlay(&refPt);
 }
 
+static bool WeUi_Gfx_SceneMgr_IsVector(const WeUi_Gfx_SceneVtbl_t* pcVtbl) {
+	return pcVtbl && pcVtbl->Build;
+}
+
+/* The vector scene's next frame with the overlay's items over it; NULL when it was not built */
+static WeUi_Gfx_Scene_t* WeUi_Gfx_SceneMgr_Build(const WeUi_Gfx_SceneVtbl_t* pcVtbl) {
+	u32 nowMs = WeUi_Gfx_FpsCtrl_GetTickCnt();
+	float dt  = WeUi_Gfx_SceneMgr_HasBuilt
+					? (float)(nowMs - WeUi_Gfx_SceneMgr_BuiltMs) / WEUI_GFX_SCENEMGR_MS_IN_SEC
+					: 0.0f;
+	WeUi_Gfx_SceneMgr_BuiltMs  = nowMs;
+	WeUi_Gfx_SceneMgr_HasBuilt = true;
+
+	WeUi_Gfx_Scene_t* pScene = pcVtbl->Build(dt);
+	if (pScene && WeUi_Gfx_SceneMgr_Cfg.OverlayItems) {
+		WeUi_Gfx_SceneMgr_Cfg.OverlayItems(pScene);
+	}
+	return pScene;
+}
+
+/* What changed since the frame before onto the panel; all of it after anything else was there */
+static void WeUi_Gfx_SceneMgr_PresentVector(const WeUi_Gfx_SceneVtbl_t* pcVtbl) {
+	WeUi_Gfx_Scene_t* pScene = WeUi_Gfx_SceneMgr_Build(pcVtbl);
+	if (!pScene) {
+		return;
+	}
+	if (WeUi_Gfx_SceneMgr_Whole || pScene != WeUi_Gfx_SceneMgr_ShownScene) {
+		WeUi_Gfx_Scene_Forget(pScene);
+		WeUi_Gfx_SceneMgr_Whole = false;
+	}
+
+	WeUi_Gfx_ClipRect_t rects[WEUI_GFX_SCENEMGR_DAMAGE_RECTS];
+	u8 num = WeUi_Gfx_Scene_Damage(pScene, rects, NUM_ELEMENTS(rects));
+	RET_STATE_t rs;
+	if (WeUi_Gfx_SceneMgr_Cfg.Present) {
+		rs = WeUi_Gfx_SceneMgr_Cfg.Present(pScene, rects, num);
+	} else {
+		rs = WeUi_Gfx_Scene_Present(pScene, rects, num);
+		WeUi_Gfx_Adapter_DrawFrame();
+	}
+
+	/* What did not make it is drawn again with the rest of the next frame */
+	WeUi_Gfx_SceneMgr_ShownScene = pScene;
+	WeUi_Gfx_SceneMgr_Whole		 = (rs != RET_STATE_SUCCESS);
+}
+
 /* One frame of the active scene for a transition to compose: drawn as Poll() draws
  * it, but paced here and never pushed - the effect pushes what it composed */
 static void WeUi_Gfx_SceneMgr_RenderIncoming(void) {
 	const WeUi_Gfx_SceneVtbl_t* pcVtbl =
 		WeUi_Gfx_SceneMgr_HasScene ? WeUi_Gfx_SceneMgr_VtblGet(WeUi_Gfx_SceneMgr_CurScene) : NULL;
 
+	if (WeUi_Gfx_SceneMgr_IsVector(pcVtbl)) {
+		WeUi_Gfx_Scene_t* pScene = WeUi_Gfx_SceneMgr_Build(pcVtbl);
+		if (pScene && WeUi_Gfx_Scene_DrawToFrame(pScene, WEUI_GFX_FRAME_DRAWING) ==
+						  RET_STATE_SUCCESS) {
+			WeUi_Gfx_SceneMgr_ShownScene = pScene;
+		}
+		WeUi_Gfx_FpsCtrl_DrawAndKeepFPS_MainFreq();
+		return;
+	}
+
+	WeUi_Gfx_SceneMgr_ShownScene = NULL;
 	WeUi_Gfx_Adapter_ClearDrawingFrame();
 	if (pcVtbl && pcVtbl->Render) {
 		WeUi_Gfx_Point_t refPt = WeUi_Gfx_SceneMgr_Cfg.RefPt;
@@ -210,6 +275,7 @@ static void WeUi_Gfx_SceneMgr_GotoScene(u32 next, bool reenter, WeUi_Gfx_SceneMg
 
 	WeUi_Gfx_SceneMgr_CurScene = next;
 	WeUi_Gfx_SceneMgr_HasScene = true;
+	WeUi_Gfx_SceneMgr_Whole	   = true;
 
 	if (pcNext->Enter) {
 		pcNext->Enter();
@@ -289,7 +355,9 @@ static void WeUi_Gfx_SceneMgr_HandleMsg(const WeUi_Gfx_SceneMgr_Msg_t* pcMsg) {
 				};
 				WeUi_Gfx_SceneMgr_Trace(trace);
 				pcMsg->ActionFn();
-				trace.Kind = WEUI_GFX_SCENEMGR_TRACE_ACTION_DONE;
+				/* It may have drawn on the panel without handing it back */
+				WeUi_Gfx_SceneMgr_Whole = true;
+				trace.Kind				= WEUI_GFX_SCENEMGR_TRACE_ACTION_DONE;
 				WeUi_Gfx_SceneMgr_Trace(trace);
 			}
 			WeUi_Gfx_SceneMgr_ScheduleNow();
@@ -315,6 +383,9 @@ void WeUi_Gfx_SceneMgr_Init(const WeUi_Gfx_SceneMgrCfg_t* pcCfg) {
 	WeUi_Gfx_SceneMgr_FrameScheduled = false;
 	WeUi_Gfx_SceneMgr_PendingFn		 = NULL;
 	WeUi_Gfx_SceneMgr_TimeoutArmed	 = false;
+	WeUi_Gfx_SceneMgr_ShownScene	 = NULL;
+	WeUi_Gfx_SceneMgr_HasBuilt		 = false;
+	WeUi_Gfx_SceneMgr_Whole			 = true;
 }
 
 u32 WeUi_Gfx_SceneMgr_Poll(void) {
@@ -344,7 +415,10 @@ u32 WeUi_Gfx_SceneMgr_Poll(void) {
 	if (WeUi_Gfx_SceneMgr_FrameDue(nowMs)) {
 		u32 frameStartMs = nowMs;
 
-		if (pcVtbl && pcVtbl->Render) {
+		if (WeUi_Gfx_SceneMgr_IsVector(pcVtbl)) {
+			WeUi_Gfx_SceneMgr_PresentVector(pcVtbl);
+		} else if (pcVtbl && pcVtbl->Render) {
+			WeUi_Gfx_SceneMgr_ShownScene = NULL;
 			if (pcVtbl->KeepFrame) {
 				WeUi_Gfx_Adapter_CopyFrame_DisplayToDrawing();
 			} else {
@@ -431,6 +505,34 @@ u32 WeUi_Gfx_SceneMgr_GoTo(u32 target, WeUi_Gfx_SceneMgr_TransitionFn_t transiti
 	return target;
 }
 
+/* Into or out of a vector scene the transition needs frames, and with bands the picture on the
+ * panel is in none of them: drawn there first, from the vector scene that is on it */
+static void WeUi_Gfx_SceneMgr_PlayTransition(WeUi_Gfx_SceneMgr_TransitionFn_t transition,
+											 WeUi_Gfx_SceneMgr_Trace_t trace) {
+	const WeUi_Gfx_SceneVtbl_t* pcVtbl = WeUi_Gfx_SceneMgr_VtblGet(WeUi_Gfx_SceneMgr_CurScene);
+	bool vector = WeUi_Gfx_SceneMgr_IsVector(pcVtbl) || WeUi_Gfx_SceneMgr_ShownScene;
+	bool framed = vector && WeUi_Gfx_SceneMgr_Cfg.FramesOpen;
+
+	if (framed && !WeUi_Gfx_SceneMgr_Cfg.FramesOpen()) {
+		return;
+	}
+#if WEUI_DISPLAY_BANDS
+	if (WeUi_Gfx_SceneMgr_ShownScene) {
+		WeUi_Gfx_Scene_DrawToFrame(WeUi_Gfx_SceneMgr_ShownScene, WEUI_GFX_FRAME_DISPLAY);
+	}
+#endif /* WEUI_DISPLAY_BANDS */
+
+	trace.Kind = WEUI_GFX_SCENEMGR_TRACE_PLAY;
+	WeUi_Gfx_SceneMgr_Trace(trace);
+	transition(WeUi_Gfx_SceneMgr_RenderIncoming);
+
+	if (framed && WeUi_Gfx_SceneMgr_Cfg.FramesClose) {
+		WeUi_Gfx_SceneMgr_Cfg.FramesClose();
+	}
+	/* Whatever its last frame left on the panel, the scene's next one redraws all of it */
+	WeUi_Gfx_SceneMgr_Whole = true;
+}
+
 static void WeUi_Gfx_SceneMgr_PlayInto(WeUi_Gfx_SceneMgr_TransitionFn_t transition,
 									   WeUi_Gfx_SceneMgr_Cause_t cause) {
 	WeUi_Gfx_SceneMgr_Trace_t trace = {
@@ -441,9 +543,7 @@ static void WeUi_Gfx_SceneMgr_PlayInto(WeUi_Gfx_SceneMgr_TransitionFn_t transiti
 	};
 
 	if (transition) {
-		trace.Kind = WEUI_GFX_SCENEMGR_TRACE_PLAY;
-		WeUi_Gfx_SceneMgr_Trace(trace);
-		transition(WeUi_Gfx_SceneMgr_RenderIncoming);
+		WeUi_Gfx_SceneMgr_PlayTransition(transition, trace);
 	}
 
 	/* Started only now that it is on the panel: the transition is no part of a scene's time */

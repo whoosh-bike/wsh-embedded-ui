@@ -73,4 +73,16 @@ RET_STATE_t WeUi_Gfx_Stroke_Build(const WeUi_Gfx_Path_t* pcPath,
 RET_STATE_t WeUi_Gfx_Stroke_Outline(const WeUi_Gfx_Path_t* pcPath,
 									const WeUi_Gfx_StrokeStyle_t* pcStyle, WeUi_Gfx_Path_t* pOut);
 
+/**
+ * @brief An outline's outer contour alone, as a disc: the shape's closed contours offset out by
+ *        the width, to be filled before the shape itself hides what lies under it. The result
+ *        looks as WeUi_Gfx_Stroke_Outline()'s ring does under the shape, and rasterises cheaper:
+ *        one contour instead of two, covered whole inside. Open contours have none. The style's
+ *        Cap is not used.
+ * @return as WeUi_Gfx_Stroke_Build().
+ */
+RET_STATE_t WeUi_Gfx_Stroke_OuterOutline(const WeUi_Gfx_Path_t* pcPath,
+										 const WeUi_Gfx_StrokeStyle_t* pcStyle,
+										 WeUi_Gfx_Path_t* pOut);
+
 #endif /* __WEUI_GFX_STROKE_H */

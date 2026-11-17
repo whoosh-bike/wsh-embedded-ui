@@ -32,6 +32,12 @@
 #define WEUI_GFX_RASTER_BAND_ROWS 16
 #endif /* WEUI_GFX_RASTER_BAND_ROWS */
 
+/** @brief Sets of the rasteriser's static state: 2 for two cores rasterising one frame at once.
+ *         A target's RasterId is one of these, 0 to WEUI_GFX_RASTER_SETS - 1 */
+#ifndef WEUI_GFX_RASTER_SETS
+#define WEUI_GFX_RASTER_SETS 1
+#endif /* WEUI_GFX_RASTER_SETS */
+
 /** @brief Coverage of a pixel wholly inside the shape */
 #define WEUI_GFX_RASTER_COVER_FULL 255
 
@@ -70,5 +76,13 @@ RET_STATE_t WeUi_Gfx_Raster_Fill(const WeUi_Gfx_Path_t* pcPath, const WeUi_Gfx_C
 RET_STATE_t WeUi_Gfx_Raster_FillShape(const WeUi_Gfx_Shape_t* pcShape,
 									  const WeUi_Gfx_ClipRect_t* pcClip,
 									  WeUi_Gfx_Raster_SpanCb_t spanCb, void* pCtx);
+
+/**
+ * @brief WeUi_Gfx_Raster_FillShape() in raster set `id`: 0 as always, 1 for another core
+ *        rasterising another band of the same frame at once. Each set is its own accumulator.
+ */
+RET_STATE_t WeUi_Gfx_Raster_FillShapeId(const WeUi_Gfx_Shape_t* pcShape,
+										const WeUi_Gfx_ClipRect_t* pcClip,
+										WeUi_Gfx_Raster_SpanCb_t spanCb, void* pCtx, u8 id);
 
 #endif /* __WEUI_GFX_RASTER_H */

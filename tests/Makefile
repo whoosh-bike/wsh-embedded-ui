@@ -46,7 +46,7 @@ INC := -I. -I$(WEUI)/host/sim -I$(EMBLIB) -I$(EMBLIB)/math -I$(EMBLIB)/string -I
 	gfx/effects gfx/image gfx/scenemgr gfx/sim gfx/text gfx/vector gfx/widgets)
 
 SRC := $(wildcard $(WEUI)/common/*.c $(WEUI)/gfx/*/*.c $(WEUI)/external/fonts/*.c) \
-	$(WEUI)/fs/weui_fs.c $(WEUI)/host/sim/display_sim.c test_png.c weui_tests.c \
+	$(WEUI)/fs/weui_fs.c $(WEUI)/host/sim/display_sim.c test_png.c weui_tests.c fill_reference.c \
 	$(EMBLIB)/math/mathlib_common.c $(EMBLIB)/def_types.c
 
 ifneq ($(QRGEN),)

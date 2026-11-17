@@ -1,6 +1,7 @@
 #ifndef __WEUI_GFX_EFFECT_RUNNER_H
 #define __WEUI_GFX_EFFECT_RUNNER_H
 
+#include "def_types.h"
 #include "weui_gfx_effect_types.h"
 
 /**
@@ -69,6 +70,10 @@ RET_STATE_t WeUi_Gfx_Effect_RunTransition(WeUi_Gfx_Effect_FrameCb_t compose, u16
 RET_STATE_t WeUi_Gfx_Effect_RunRows(WeUi_Gfx_Effect_RowCb_t row, WeUi_Gfx_Effect_FrameCb_t compose,
 									u16 frames, const void* pcParams,
 									WeUi_Gfx_Effect_RenderCb_t renderIncoming);
+
+/** Copy one old/new source pixel into the current row; out-of-frame sources are blank.
+ * Call only from a RunRows callback. New sources must obey RunRows in-place constraints. */
+void WeUi_Gfx_Effect_RowSample(const WeUi_Gfx_Effect_Ctx_t* ctx, s16 x, s16 sx, s16 sy, bool old);
 
 #if WEUI_DISPLAY_BANDS && WEUI_DISPLAY_FRAME_MEM
 /**

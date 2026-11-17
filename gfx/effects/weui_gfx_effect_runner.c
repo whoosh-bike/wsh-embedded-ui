@@ -246,3 +246,14 @@ RET_STATE_t WeUi_Gfx_Effect_RunRows(WeUi_Gfx_Effect_RowCb_t row, WeUi_Gfx_Effect
 	WeUi_Gfx_Effect_End(drawCb);
 	return rs;
 }
+
+void WeUi_Gfx_Effect_RowSample(const WeUi_Gfx_Effect_Ctx_t* ctx, s16 x, s16 sx, s16 sy, bool old) {
+	if (x < 0 || x >= ctx->Width)
+		return;
+	if (sx < 0 || sy < 0 || sx >= ctx->Width || sy >= ctx->Height)
+		WeUi_Gfx_Effect_RowSet(x, WeUi_Gfx_Effect_Blank());
+	else if (old)
+		WeUi_Gfx_Effect_RowOld(x, sx, sy, 1);
+	else
+		WeUi_Gfx_Effect_RowNew(x, sx, sy, 1);
+}

@@ -54,9 +54,9 @@ RET_STATE_t WeUi_Gfx_Mask_Init(WeUi_Gfx_Mask_t* pMask, u8* pBuf, u32 size,
 }
 
 static RET_STATE_t WeUi_Gfx_Mask_Paint(WeUi_Gfx_Mask_t* pMask, const WeUi_Gfx_Shape_t* pcShape,
-									   u8 opacity, bool cut) {
+									   u8 opacity, bool cut, u8 id) {
 	WeUi_Gfx_MaskCtx_t ctx = {.pMask = pMask, .Opacity = WeUi_Gfx_Mask_ToMul(opacity), .Cut = cut};
-	return WeUi_Gfx_Raster_FillShape(pcShape, &pMask->Rect, WeUi_Gfx_Mask_Span, &ctx);
+	return WeUi_Gfx_Raster_FillShapeId(pcShape, &pMask->Rect, WeUi_Gfx_Mask_Span, &ctx, id);
 }
 
 RET_STATE_t WeUi_Gfx_Mask_AddPath(WeUi_Gfx_Mask_t* pMask, const WeUi_Gfx_Path_t* pcPath,
@@ -64,7 +64,7 @@ RET_STATE_t WeUi_Gfx_Mask_AddPath(WeUi_Gfx_Mask_t* pMask, const WeUi_Gfx_Path_t*
 	if (pcPath->Broken)
 		return RET_STATE_ERR_PARAM;
 	WeUi_Gfx_Shape_t shape = WeUi_Gfx_Path_Shape(pcPath);
-	return WeUi_Gfx_Mask_Paint(pMask, &shape, opacity, false);
+	return WeUi_Gfx_Mask_Paint(pMask, &shape, opacity, false, 0);
 }
 
 RET_STATE_t WeUi_Gfx_Mask_CutPath(WeUi_Gfx_Mask_t* pMask, const WeUi_Gfx_Path_t* pcPath,
@@ -72,12 +72,17 @@ RET_STATE_t WeUi_Gfx_Mask_CutPath(WeUi_Gfx_Mask_t* pMask, const WeUi_Gfx_Path_t*
 	if (pcPath->Broken)
 		return RET_STATE_ERR_PARAM;
 	WeUi_Gfx_Shape_t shape = WeUi_Gfx_Path_Shape(pcPath);
-	return WeUi_Gfx_Mask_Paint(pMask, &shape, opacity, true);
+	return WeUi_Gfx_Mask_Paint(pMask, &shape, opacity, true, 0);
 }
 
 RET_STATE_t WeUi_Gfx_Mask_AddShape(WeUi_Gfx_Mask_t* pMask, const WeUi_Gfx_Shape_t* pcShape,
 								   u8 opacity) {
-	return WeUi_Gfx_Mask_Paint(pMask, pcShape, opacity, false);
+	return WeUi_Gfx_Mask_Paint(pMask, pcShape, opacity, false, 0);
+}
+
+RET_STATE_t WeUi_Gfx_Mask_AddShapeId(WeUi_Gfx_Mask_t* pMask, const WeUi_Gfx_Shape_t* pcShape,
+									 u8 opacity, u8 id) {
+	return WeUi_Gfx_Mask_Paint(pMask, pcShape, opacity, false, id);
 }
 
 u8 WeUi_Gfx_Mask_At(const WeUi_Gfx_Mask_t* pcMask, WeUi_Gfx_PtPos_t x, WeUi_Gfx_PtPos_t y) {
