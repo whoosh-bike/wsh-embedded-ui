@@ -2,12 +2,12 @@
 
 ## Branches
 
-- `main` - stable; applications pin this.
+- `main` (or `master` in the legacy internal repository) - stable; applications pin this.
 - `dev` - integration branch for the next release.
 - `feature/<name>` - short-lived work, merged into `dev` through a merge request.
 
-Create feature branches from `dev`, not from `main`. A release is `dev` merged into `main`
-and tagged.
+Create feature branches from `dev`, not from the stable branch. A release is `dev` merged
+into the stable branch and tagged.
 
 ## Before you open a merge request
 

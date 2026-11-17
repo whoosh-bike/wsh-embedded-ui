@@ -147,5 +147,5 @@ licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Mirrors
 
-The canonical repository is on GitLab. GitHub mirrors `main` and `dev` read-only; issues and
-merge requests belong on GitLab.
+The public repository is mirrored from GitLab to GitHub: GitHub carries `main` and `dev`
+read-only. Issues and merge requests belong on GitLab.

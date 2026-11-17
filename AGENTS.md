@@ -93,9 +93,9 @@ leaving them for later.
 
 ## Branches
 
-- `main` - stable, what applications pin.
+- `main` (or `master` in the legacy internal repository) - stable.
 - `dev` - integration branch.
 - `feature/*` - short-lived work, merged into `dev` through a merge request.
 
-The GitHub repository is a read-only mirror of `main` and `dev`. Issues and merge requests
-belong on GitLab.
+The public GitHub repository is a read-only mirror of the public GitLab repository's `main`
+and `dev`. Issues and merge requests belong on GitLab.
