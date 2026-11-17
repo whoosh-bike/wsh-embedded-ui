@@ -1,0 +1,11 @@
+* text=auto eol=lf
+
+# Generated font data: keep it out of diffs and language statistics
+external/fonts/u8g2_fonts.c linguist-generated=true -diff
+
+# Binary assets
+*.woff2 binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.bmp binary

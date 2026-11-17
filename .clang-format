@@ -1,0 +1,20 @@
+---
+# weui C style: LLVM base, tabs, 100 columns, pointer on the left.
+BasedOnStyle: LLVM
+Language: Cpp
+IndentWidth: 4
+TabWidth: 4
+UseTab: Always
+ColumnLimit: 100
+PointerAlignment: Left
+ReferenceAlignment: Pointer
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+IndentCaseLabels: false
+AlignAfterOpenBracket: Align
+ContinuationIndentWidth: 4
+SortIncludes: Never
+InsertNewlineAtEOF: true
+...

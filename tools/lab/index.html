@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>weui lab</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header>
+      <span class="brand">weui lab</span>
+      <span id="target" class="pill"></span>
+      <label>variant <select id="variant"></select></label>
+      <label>panel <select id="size"></select></label>
+      <label>brightness <input id="bright" type="range" min="0.05" max="1" step="0.05" /> <output id="brightOut"></output></label>
+      <span id="status" class="muted"></span>
+    </header>
+
+    <aside id="actions"></aside>
+    <div id="splitActs" class="splitter col"></div>
+
+    <main>
+      <div class="toolbar">
+        <label><input type="radio" name="look" value="led" /> LED</label>
+        <label><input type="radio" name="look" value="flat" /> flat</label>
+        <label><input id="grid" type="checkbox" /> grid</label>
+        <label title="dim what the previous frame already had (D)"><input id="diff" type="checkbox" /> diff</label>
+        <label>zoom <select id="zoom"></select></label>
+      </div>
+      <div id="split">
+        <div id="stage"><canvas id="panel"></canvas></div>
+        <div id="splitPanel" class="splitter row" hidden></div>
+        <div id="graphPane" hidden><svg id="graph" class="graph"></svg></div>
+      </div>
+      <div id="panic" hidden></div>
+    </main>
+    <div id="splitInsp" class="splitter col"></div>
+
+    <aside id="inspector">
+      <section class="card" id="sceneCard" hidden>
+        <h3 class="card-title">Scene <span class="muted">at the playhead</span></h3>
+        <div id="sceneNow" class="scene-now"></div>
+        <dl id="sceneInfo"></dl>
+        <div id="moves" class="moves"></div>
+      </section>
+      <section class="card">
+        <h3 class="card-title">Pixel <span class="muted" id="pixMode">hover, click to pin</span></h3>
+        <dl id="pixInfo"></dl>
+        <div class="row">
+          <button id="copyRgb" disabled>copy RGB</button>
+          <button id="copyHsb" disabled>copy HSB</button>
+        </div>
+      </section>
+      <section class="card">
+        <h3 class="card-title">Pinned pixel over the run</h3>
+        <canvas id="history" class="strip tall"></canvas>
+      </section>
+      <p class="muted small">Space play · ←/→ frame (Shift ×10) · Home/End · A/B loop, Esc clears · D diff · L look · R restart</p>
+    </aside>
+
+    <div id="splitFoot" class="splitter row"></div>
+    <footer>
+      <div class="transport">
+        <button id="restart" class="restart" title="start the session over, nothing pressed (R)" hidden>↺ restart</button>
+        <button id="first" title="Home">⏮</button>
+        <button id="back" title="←">◀︎</button>
+        <button id="play" title="Space">▶︎</button>
+        <button id="fwd" title="→">▶︎|</button>
+        <label>speed <select id="speed"></select></label>
+        <button id="loopA" title="A">A</button>
+        <button id="loopB" title="B">B</button>
+        <span id="frameInfo" class="mono"></span>
+      </div>
+      <canvas id="scenes" class="strip scenes" title="" hidden></canvas>
+      <canvas id="timeline" class="strip"></canvas>
+      <div class="toolbar console-bar">
+        <span class="card-title">Console</span>
+        <input id="logFilter" type="search" placeholder="filter" />
+        <label>from <select id="logLevel"></select></label>
+        <label title="scroll to the line at the playhead"><input id="logFollow" type="checkbox" checked /> follow</label>
+        <span id="logCount" class="muted"></span>
+      </div>
+      <div id="console" class="mono"></div>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

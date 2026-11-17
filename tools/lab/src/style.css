@@ -1,0 +1,600 @@
+/* Theme of we-forge (frontend/src/styles/vars.css, components.css): font, palette,
+ * inputs, buttons and tabs, so the tools look like one family */
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-display: block;
+}
+
+:root {
+  --bg: #1b1b22;
+  --bg-header: #1f1f28;
+  --bg-card: #25252f;
+  --bg-input: #191920;
+  --bg-dim: #2a2a36;
+  --bg-log: #15151c;
+  --bg-panel: #0e0e13;
+
+  --border: #36364a;
+  --border-input: #424252;
+  --border-log: #2c2c3c;
+
+  --text: #e4e4e4;
+  --text-dim: #999;
+  --text-dimmer: #666;
+  --text-hover: #d4d4d4;
+
+  --accent: #a0c4ff;
+  --warn: #f59e0b;
+  --danger: #ff6b7d;
+  --danger-bg: #2a1016;
+  --danger-border: #aa1e33;
+
+  --gutter: 14px;
+  --acts-w: 210px;
+  --insp-w: 340px;
+  --console-h: 150px;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  height: 100vh;
+  display: grid;
+  /* minmax(0, ...) so the zoomed panel never grows its own cell: the zoom is fitted to the cell */
+  grid-template:
+    "head head head head head" auto
+    "acts sa main sb insp" minmax(0, 1fr)
+    "sf sf sf sf sf" auto
+    "foot foot foot foot foot" auto / var(--acts-w) auto minmax(0, 1fr) auto var(--insp-w);
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.45 "JetBrains Mono", monospace;
+}
+
+header {
+  grid-area: head;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: center;
+  padding: 10px var(--gutter);
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  font-weight: 600;
+}
+
+.pill {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-dim);
+  color: var(--text-dim);
+  font-size: 0.72rem;
+}
+
+aside,
+main,
+footer {
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ── Actions: we-forge tabs ── */
+#actions {
+  grid-area: acts;
+  overflow: auto;
+  padding: var(--gutter) 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ── Bars between the parts: dragged, they resize them ── */
+.splitter {
+  background: var(--border);
+  touch-action: none;
+}
+
+.splitter.col {
+  width: 1px;
+  cursor: col-resize;
+  /* a wider grip than the line it draws */
+  box-shadow: 0 0 0 3px transparent;
+  position: relative;
+}
+
+.splitter.row {
+  height: 1px;
+  cursor: row-resize;
+  position: relative;
+}
+
+.splitter::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
+
+.splitter:hover,
+.splitter.dragging {
+  background: var(--accent);
+}
+
+#splitActs {
+  grid-area: sa;
+}
+
+#splitInsp {
+  grid-area: sb;
+}
+
+#splitFoot {
+  grid-area: sf;
+}
+
+#split {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#split > #splitPanel {
+  margin: 6px var(--gutter);
+}
+
+#stage.folded,
+#graphPane.folded {
+  display: none;
+}
+
+#graphPane {
+  min-height: 0;
+  margin: 0 var(--gutter);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-panel);
+  overflow: hidden;
+}
+
+#graph {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#actions button {
+  text-align: left;
+  padding: 5px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+}
+
+#actions button:hover {
+  color: var(--text-hover);
+  background: var(--bg-dim);
+}
+
+#actions .side-title {
+  margin: 12px 12px 4px;
+}
+
+#actions .side-title:first-child {
+  margin-top: 0;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.4em;
+  padding: 0 4px;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  color: var(--text-dimmer);
+  font: inherit;
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+#actions button.active {
+  background: var(--bg-dim);
+  border-color: var(--border);
+  color: var(--accent);
+}
+
+main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar,
+.transport,
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.toolbar {
+  padding: 10px var(--gutter);
+}
+
+#stage {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  display: grid;
+  place-items: center;
+  background: var(--bg-panel);
+  margin: 0 var(--gutter);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+#panel {
+  image-rendering: pixelated;
+  cursor: crosshair;
+}
+
+#panic {
+  margin: 10px var(--gutter) 0;
+  padding: 8px 12px;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  border-radius: 8px;
+  color: var(--danger);
+  white-space: pre-wrap;
+}
+
+/* ── Inspector: we-forge cards ── */
+#inspector {
+  grid-area: insp;
+  overflow: auto;
+  padding: var(--gutter);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card-title {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-dimmer);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.card-title .muted {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 3px 12px;
+  margin: 0;
+  font-size: 0.83rem;
+}
+
+dt {
+  color: var(--text-dimmer);
+}
+
+dd {
+  margin: 0;
+  text-align: right;
+}
+
+.swatch {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  vertical-align: -1px;
+  margin-right: 6px;
+  border: 1px solid var(--border-input);
+  border-radius: 3px;
+}
+
+footer {
+  grid-area: foot;
+  padding: 10px var(--gutter) var(--gutter);
+}
+
+.strip {
+  display: block;
+  width: 100%;
+  height: 30px;
+  margin-top: 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-log);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.strip.scenes {
+  height: 34px;
+}
+
+.strip.tall {
+  height: 96px;
+  margin: 0;
+}
+
+/* ── Scene card: where the run is, and the moves it made ── */
+.scene-now {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.graph .edge {
+  fill: none;
+  stroke: var(--text-dimmer);
+  cursor: pointer;
+}
+
+.graph .edge:hover {
+  stroke: var(--text-hover);
+}
+
+.graph .edge.lit {
+  stroke: var(--accent);
+}
+
+.graph .arrow {
+  fill: var(--text-dimmer);
+}
+
+.graph .arrow.lit {
+  fill: var(--accent);
+}
+
+.graph .node text {
+  fill: var(--text);
+  font-size: 11px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.graph .label {
+  fill: var(--text-dim);
+  font-size: 11px;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: var(--bg-panel);
+  stroke-width: 4px;
+  cursor: pointer;
+}
+
+.graph .label.lit {
+  fill: var(--accent);
+}
+
+.graph .edge.running {
+  stroke-dasharray: 6 4;
+  animation: run 0.4s linear infinite;
+}
+
+@keyframes run {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+.graph .node text {
+  font-size: 13px;
+}
+
+.graph .node.lit rect {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.moves {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.75rem;
+}
+
+.move {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.move:hover {
+  background: var(--bg-dim);
+}
+
+.move.lit {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+button.restart {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.lvl-scene span:nth-child(3) {
+  color: #5fd38d;
+}
+
+/* ── Inputs and buttons: we-forge components ── */
+label {
+  color: var(--text-dim);
+}
+
+select,
+input[type="search"] {
+  padding: 4px 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+select:focus,
+input[type="search"]:focus {
+  border-color: var(--accent);
+}
+
+input[type="range"],
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: #3a6ea8;
+  cursor: pointer;
+}
+
+button {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s, background 0.15s;
+}
+
+button:hover {
+  background: var(--bg-dim);
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── Console: we-forge console ── */
+.console-bar {
+  margin-top: 10px;
+  padding: 4px 10px;
+  background: var(--bg-log);
+  border: 1px solid var(--border-log);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  font-size: 0.78rem;
+}
+
+#console {
+  height: var(--console-h);
+  overflow: auto;
+  background: var(--bg-log);
+  border: 1px solid var(--border-log);
+  border-radius: 0 0 8px 8px;
+  font-size: 0.78rem;
+}
+
+.log {
+  display: grid;
+  grid-template-columns: 4em 6.5em 4.5em 1fr;
+  gap: 8px;
+  padding: 1px 10px;
+  cursor: pointer;
+  white-space: pre-wrap;
+}
+
+.log:hover {
+  background: var(--bg-dim);
+}
+
+.log.future {
+  opacity: 0.4;
+}
+
+.log.current {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.lvl-trace span:nth-child(3),
+.lvl-debug span:nth-child(3) {
+  color: var(--accent);
+}
+
+.lvl-warn span:nth-child(3) {
+  color: var(--warn);
+}
+
+.lvl-error span:nth-child(3),
+.lvl-critic span:nth-child(3) {
+  color: var(--danger);
+}
+
+.muted {
+  color: var(--text-dimmer);
+}
+
+.small {
+  font-size: 0.72rem;
+}
+
+@media (max-width: 900px) {
+  body {
+    height: auto;
+    grid-template: "head" auto "acts" auto "main" 60vh "insp" auto "foot" auto / 1fr;
+  }
+
+  #actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .splitter {
+    display: none;
+  }
+}
