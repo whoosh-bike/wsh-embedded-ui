@@ -4,6 +4,9 @@
 #   make T=push_lands     one test
 #   make W=32 H=8         another panel size
 #   make DISPLAY=GRAY     a gray panel; LIB=GRAY for the gray colour scheme
+#   make BANDS=1          scenes go out in bands, as to a driver with no frame
+#   make FRAME_MEM=1      effects work on the frames as memory; the frames match the same reference
+#   make BANDS=1 FRAME_MEM=1   transitions composed in bands too, held to the in-place ones
 #   make golden           record this host's frame hashes as the reference
 #   make check            run, then diff the frame hashes against the reference
 #
@@ -19,8 +22,11 @@ H       ?= 25
 DISPLAY := $(if $(filter COLOR GRAY,$(DISPLAY)),$(DISPLAY),COLOR)
 LIB     := $(if $(filter RGB GRAY,$(LIB)),$(LIB),RGB)
 
-VARIANT := $(W)x$(H)-$(DISPLAY)-$(LIB)$(if $(QRGEN),-QR)
-BUILD   := build/$(VARIANT)
+BANDS   ?= 0
+FRAME_MEM ?= 0
+
+VARIANT := $(W)x$(H)-$(DISPLAY)-$(LIB)$(if $(QRGEN),-QR)$(if $(filter 1,$(BANDS)),-BANDS)
+BUILD   := build/$(VARIANT)$(if $(filter 1,$(FRAME_MEM)),-MEM)
 OUT     := out/$(VARIANT)
 # libm differs in the last bits between hosts, and so do the hashes of anything drawn
 # through sinf/powf: a reference only holds for the host it was recorded on
@@ -32,11 +38,12 @@ CFLAGS := -std=gnu2x -g -O1 -Wall -Wextra -Wno-unused-parameter -Wno-unused-func
 	-fno-sanitize-recover=all \
 	-DWEUI_DISPLAY_WIDTH=$(W) -DWEUI_DISPLAY_HEIGHT=$(H) \
 	-DWEUI_TEST_DISPLAY_GRAY=$(if $(filter GRAY,$(DISPLAY)),1,0) \
-	-DWEUI_TEST_LIB_GRAY=$(if $(filter GRAY,$(LIB)),1,0)
+	-DWEUI_TEST_LIB_GRAY=$(if $(filter GRAY,$(LIB)),1,0) \
+	-DWEUI_DISPLAY_BANDS=$(BANDS) -DWEUI_DISPLAY_FRAME_MEM=$(FRAME_MEM)
 
 INC := -I. -I$(WEUI)/host/sim -I$(EMBLIB) -I$(EMBLIB)/math -I$(EMBLIB)/string -I$(EMBLIB)/term \
 	$(addprefix -I$(WEUI)/,common external/fonts fs gfx/anima gfx/core gfx/demo gfx/draw \
-	gfx/effects gfx/image gfx/scenemgr gfx/sim gfx/text gfx/widgets)
+	gfx/effects gfx/image gfx/scenemgr gfx/sim gfx/text gfx/vector gfx/widgets)
 
 SRC := $(wildcard $(WEUI)/common/*.c $(WEUI)/gfx/*/*.c $(WEUI)/external/fonts/*.c) \
 	$(WEUI)/fs/weui_fs.c $(WEUI)/host/sim/display_sim.c test_png.c weui_tests.c \

@@ -8,6 +8,9 @@ cd tests
 make                    # build and run everything, frames as PNG in out/
 make T=push_lands       # one test
 make W=32 H=8           # another panel size; DISPLAY=GRAY, LIB=GRAY for the gray paths
+make BANDS=1            # scenes out in bands, as to a driver with no frame
+make FRAME_MEM=1        # effects on the frames as memory: the same frames, the same reference
+make BANDS=1 FRAME_MEM=1   # transitions composed in bands, each frame held to the in-place one
 make QRGEN=<path to qr-code-generator/c>   # include the QR widget
 make check              # run, then compare frame hashes with the reference
 make golden             # record the reference for this host

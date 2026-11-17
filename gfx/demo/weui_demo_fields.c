@@ -177,8 +177,8 @@ static const WeUi_DemoFields_Palette_t WeUi_DemoFields_Toxic =
 static const WeUi_ColorSchemeRgb_t WeUi_DemoFields_NightTop	   = {0.00f, 0.00f, 0.03f};
 static const WeUi_ColorSchemeRgb_t WeUi_DemoFields_NightBottom = {0.02f, 0.03f, 0.10f};
 
-static float WeUi_DemoFields_AuroraHem[WEUI_DISPLAY_WIDTH];
-static float WeUi_DemoFields_AuroraRay[WEUI_DISPLAY_WIDTH];
+static float WEUI_DATA_PLACEMENT WeUi_DemoFields_AuroraHem[WEUI_DISPLAY_WIDTH];
+static float WEUI_DATA_PLACEMENT WeUi_DemoFields_AuroraRay[WEUI_DISPLAY_WIDTH];
 
 static WeUi_DemoFields_PaintFn_t WeUi_DemoFields_Paint;
 /* Wall clock, not frames: a heavy field that cannot keep the rate would otherwise
