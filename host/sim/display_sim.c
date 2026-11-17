@@ -155,6 +155,13 @@ void DisplayM_SaveFrame_DisplayToAux(void) {
 	memcpy(pAux, pDisplay, Params.PixelNum * sizeof(u32));
 }
 
+void* DisplayM_GetFrameMem(u8 frame, u32* pStride, u8* pPx) {
+	u32* const frames[] = {pDrawing, pDisplay, pAux};
+	*pStride			= Params.Width;
+	*pPx				= 0;
+	return frame < 3 ? frames[frame] : NULL;
+}
+
 void DisplayM_FillDrawingFrame(u32 color) {
 	u32 scaled = DisplaySim_ApplyBright(color);
 	for (u32 i = 0; i < Params.PixelNum; i++)
@@ -165,4 +172,32 @@ void DisplayM_FillDisplayAndDrawingFrames(u32 color) {
 	DisplayM_FillDrawingFrame(color);
 	DisplayM_DrawFrame();
 	DisplayM_FillDrawingFrame(color);
+}
+
+/* Bands, as a driver with no frame takes them: written into both frames, so that a frame push
+ * after them shows them still. One that shows its frames as memory keeps them apart from the
+ * bands, as a panel driver holding frames only for a transition does: a transition composing in
+ * bands reads the incoming picture from the drawing frame all the while */
+#define SIM_BAND_ROWS 8
+
+static u16 SimBand[WEUI_DISPLAY_WIDTH * SIM_BAND_ROWS];
+
+u16* DisplayM_BandGet(u32* pPixels) {
+	*pPixels = NUM_ELEMENTS(SimBand);
+	return SimBand;
+}
+
+void DisplayM_BandSend(u16 x0, u16 y0, u16 x1, u16 y1, u16* pBuf) {
+	u32 w = (u32)(x1 - x0);
+	for (u16 y = y0; y < y1; y++) {
+		for (u16 x = x0; x < x1; x++) {
+			u16 px = pBuf[(u32)(y - y0) * w + (u32)(x - x0)]; /* the default, RGB565 */
+			u32 r = (px >> 8) & 0xF8, g = (px >> 3) & 0xFC, b = (px << 3) & 0xF8;
+			u32 rgb				= (r | r >> 5) | (g | g >> 6) << 8 | (b | b >> 5) << 16;
+			pDisplay[Idx(x, y)] = rgb;
+#if !WEUI_DISPLAY_FRAME_MEM
+			pDrawing[Idx(x, y)] = rgb;
+#endif
+		}
+	}
 }

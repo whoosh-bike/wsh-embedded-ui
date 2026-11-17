@@ -24,7 +24,7 @@ LAB_SRC := c/lab.c $(TARGET_SRC)
 
 INC := -Ic -I$(WEUI)/host/sim -I$(EMBLIB) -I$(EMBLIB)/math -I$(EMBLIB)/string -I$(EMBLIB)/term \
 	$(addprefix -I$(WEUI)/,common external/fonts fs gfx/anima gfx/core gfx/demo gfx/draw \
-	gfx/effects gfx/image gfx/scenemgr gfx/sim gfx/text gfx/widgets) $(TARGET_INC)
+	gfx/effects gfx/image gfx/scenemgr gfx/sim gfx/text gfx/vector gfx/widgets) $(TARGET_INC)
 
 CFLAGS := -std=gnu2x -O2 -Wall -Wno-unused-parameter -Wno-unused-function -Wno-switch \
 	-Wno-format -Wno-comment \

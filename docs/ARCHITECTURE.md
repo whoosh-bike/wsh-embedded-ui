@@ -39,6 +39,7 @@ panel
 | `gfx/effects/` | Painters, solo effects, transitions |
 | `gfx/scenemgr/` | Scene table, message ring, timeouts, overlay, transitions |
 | `gfx/sim/` | Game of Life |
+| `gfx/vector/` | Affine transforms, paths, antialiased raster, fills, masks, strokes, damage-tracked scenes |
 | `gfx/demo/` | Showpieces, one-shot actions |
 | `common/` | Colour types, PRNG, FPS helpers |
 | `fs/` | Asset storage |
@@ -64,6 +65,7 @@ Poll()
   scene timeout, if due -> cfg.OnTimeout()
   if a frame is due:
     scene Render()          one frame, no clear and no push
+    or vector scene Build(dt) -> Damage() -> Present()
     cfg.Overlay()           optional, on top of the scene
     clear or copy frame, DrawFrame()
     schedule the next frame from the scene's Fps
@@ -75,11 +77,55 @@ scene switch is synchronous: `Exit()`, `Enter()` and the transition all run insi
 `Poll()`. Transitions block the loop for their duration; keep them bounded, or kick the
 watchdog from `WeUi_Gfx_FpsCtrl_AttachAppCallback()`, which effects keep calling.
 
+## Vector core
+
+`gfx/vector/` draws antialiased shapes from float coordinates, independently of the integer
+primitive API:
+
+| Module | Responsibility |
+|---|---|
+| `weui_gfx_affine` | Float point, affine matrix, transform stack |
+| `weui_gfx_path` | Outline builder; curves flattened on the panel (Wang's formula) |
+| `weui_gfx_raster` | Exact coverage spans inside a clip rectangle, nonzero fill rule |
+| `weui_gfx_fill` | Solid colour, linear/radial gradients, opacity, soft spots |
+| `weui_gfx_mask` | Masks built from shapes; a paint keeps inside or outside |
+| `weui_gfx_stroke` | Stroke or outline of a path, as another path: joins and caps |
+| `weui_gfx_scene` | A frame's items kept for redraw; damage rectangles; `Present()` |
+
+The core draws one shape at a time: the rasteriser accumulator, the stroke contour buffer
+and the fill colour tables are static. A scene is the caller's storage and keeps its items,
+so only the rectangles that changed since the previous frame are redrawn.
+
+`WeUi_Gfx_Scene_Present()` sends the damaged rectangles to either kind of driver: with a
+frame driver it copies the last picture back and draws the rectangles; with a band driver
+it borrows a band, draws whole rows into it and sends it back. See "Band output" below.
+
+Unlike the rest of the library, the vector fill blends coverage through the raw pixel
+accessors: the stored pixels may already have been through the driver's brightness LUT,
+and running the blend through `SetPixel` would scale them a second time.
+
+The scene manager draws a vector scene too: `Build(dt)` gives the frame, `Damage()` finds
+what changed and `Present()` puts it on the panel. A transition into or out of such a scene
+can borrow the driver's frames (`cfg.FramesOpen` / `FramesClose`) and draw the scene whole
+into them with `WeUi_Gfx_Scene_DrawToFrame()`. `cfg.OverlayItems` adds items over every
+vector scene, `cfg.Present` lets a driver push the frame its own way.
+
+### Two cores at once
+
+A frame's bands may be drawn by two cores concurrently. `WeUi_Gfx_Target_t` carries a
+`RasterId`; the rasteriser accumulator, span rows, gradient tables and mask cache are kept
+in `WEUI_GFX_RASTER_SETS` sets (1 by default, 2 for two cores), one per id. The host splits
+the damage rectangles into row ranges, gives each core a target with its own id, and joins
+the cores before the frame goes out. Two targets with different ids draw the same pixels;
+a host test draws a frame with each id and holds one to the other.
+
 ## Scenes
 
 A scene is a `WeUi_Gfx_SceneVtbl_t` (see `weui_gfx_scenemgr.h`):
 
 - `Render(RefPt)` draws one frame. It must not clear or push the frame.
+- `Build(dt)` replaces `Render` for a vector scene: it builds a `WeUi_Gfx_Scene_t` from
+  scratch, `dt` seconds after the previous frame, and the engine presents only what changed.
 - `Fps` caps the render rate; `Fps <= 0` renders once on `Enter()` and never self-ticks.
 - `Enter()` / `Exit()` set up and tear down per-scene state.
 - `OnInput()` handles input where it differs from the app-wide `cfg.OnInput`.
@@ -146,6 +192,14 @@ void DisplayM_FillDisplayAndDrawingFrames(u32 color);
 void DisplayM_DrawFrame(void);                       /* push the drawing frame */
 void DisplayM_CopyFrame_DisplayToDrawing(void);
 void DisplayM_SaveFrame_DisplayToAux(void);
+
+/* With WEUI_DISPLAY_FRAME_MEM: a frame as memory. frame 0 drawing, 1 display, 2 aux;
+ * px 0 = u32 raw, 1 = 565, 2 = 565 high byte first. NULL if the frame is not kept. */
+void* DisplayM_GetFrameMem(u8 frame, u32* pStride, u8* pPx);
+
+/* With WEUI_DISPLAY_BANDS: a free band buffer and its size in pixels, and its return. */
+u16* DisplayM_BandGet(u32* pPixels);
+void DisplayM_BandSend(u16 x0, u16 y0, u16 x1, u16 y1, u16* pBuf);
 ```
 
 - Pixels are `u32` in `0x00BBGGRR` order, as `WeUi_Gfx_Transform_Color2Bytes()` packs them.
@@ -159,6 +213,17 @@ void DisplayM_SaveFrame_DisplayToAux(void);
 - `WEUI_DISPLAY_FLIP_X` / `_Y` mirror in the adapter, so the driver always sees its own
   orientation.
 
+### Band output
+
+A large panel may keep no frame in memory. With `WEUI_DISPLAY_BANDS` the driver supplies
+`DisplayM_BandGet()` / `DisplayM_BandSend()` instead; the frame calls stay but do nothing.
+Only a vector scene is drawn then: `WeUi_Gfx_Scene_Present()` borrows a band, draws whole
+rows into it, sends it back, and repeats, so the next band is drawn while one goes out.
+
+A band takes colours as stored, and brightness and mirroring are the panel's own:
+`WEUI_DISPLAY_FLIP_X` / `_Y` are refused with bands. `WEUI_DISPLAY_BAND_FORMAT` selects the
+pixel format and `WEUI_DISPLAY_BAND_ALIGN` the x alignment of a band.
+
 `host/sim/display_sim.c` is a reference implementation over host memory.
 
 ## Configuration
@@ -171,10 +236,13 @@ panel size, the colour scheme and the platform bindings.
 |---|---|
 | Colour | `WEUI_LIB_COLOR_SCHEME__RGB` / `__GRAY`, `WEUI_LIB_COLOR_ALPHA_CHANNEL`, `WEUI_IMG_STORAGE_COLOR_SCHEME__*` |
 | Display | `WEUI_DISPLAY_WIDTH`, `WEUI_DISPLAY_HEIGHT`, `WEUI_DISPLAY_COLOR` / `_GRAY`, `WEUI_DISPLAY_FLIP_X/Y` |
+| Display output | `WEUI_DISPLAY_BANDS` (0), `_BAND_FORMAT`, `_BAND_ALIGN` (1), `WEUI_DISPLAY_FRAME_MEM` (0) |
+| Memory placement | `WEUI_DATA_PLACEMENT`, `WEUI_IMAGES_OPS_DATA_PLACEMENT` |
 | Components | `WEUI_USE_COMPONENT__IMAGE`, `_IMAGE_DITHER`, `_IMAGE_COMPRESS`, `_WIDGET_QR` |
 | Asset storage | `WEUI_FS_USE_INT_STORAGE`, `_EXT_STORAGE`, `_FAT_SYNC`, `WEUI_FS_JSON_*` |
 | FPS | `WEUI_FPS_CTRL_MIN/DEF/MAX_RENDER_FREQ` (1 / 60 / 120) |
-| Scene manager | `WEUI_GFX_SCENEMGR_QUEUE_DEPTH` (8), `_INPUT_MAX_BYTES` (16), `_PACE_FROM_FRAME_END` (0) |
+| Scene manager | `WEUI_GFX_SCENEMGR_QUEUE_DEPTH` (8), `_INPUT_MAX_BYTES` (16), `_DAMAGE_RECTS` (8), `_PACE_FROM_FRAME_END` (0) |
+| Vector core | `WEUI_GFX_AFFINE_STACK_DEPTH` (8), `_PATH_PTS_MAX` (256), `_PATH_CONTOURS_MAX` (16), `_PATH_TOLERANCE` (0.2), `_RASTER_WIDTH_MAX` (panel width), `_RASTER_BAND_ROWS` (16), `_RASTER_SETS` (1), `_FILL_LUTS` (1), `_SCENE_ITEMS_MAX` (32), `_SCENE_PTS_MAX` (512), `_SCENE_CONTOURS_MAX` (64), `_SCENE_STOPS_MAX` (32), `_SCENE_MASKS_CACHED` (4), `_SCENE_DAMAGE_GAP` (2), `_SCENE_DAMAGE_ALIGN` (1) |
 | Platform | `WEUI_USE_RTOS` / `WEUI_USE_BAREMETAL`, `WEUI_USE_CUSTOM_ALLOC`, `WEUI_TICK_GET_MS_CNT()`, `WEUI_DELAY_MS()`, `WEUI_DELAY_UNTIL_MS()`, `WEUI_ENTER/EXIT_CRITICAL()` |
 | Build | `WEUI_USE_IND` (1), `WEUI_USE_DEMO` (1) in `weui.mk` |
 
@@ -192,6 +260,18 @@ The authoritative list, with defaults and checks, is `gfx/core/weui_cfg_check.h`
 
 `W` and `H` are `WEUI_DISPLAY_WIDTH` / `HEIGHT`, the largest panel the build supports, not
 the panel actually attached. Pixel size is 1 byte (gray), 3 (RGB) or 4 (RGB + alpha).
+
+A driver that keeps its frames in memory may expose them (`WEUI_DISPLAY_FRAME_MEM`,
+`DisplayM_GetFrameMem`). Effects then compose on those pixels directly instead of calling
+the driver for every pixel; the picture is identical, which `make check FRAME_MEM=1`
+checks against the same reference. With `WEUI_DISPLAY_BANDS` there are no frames at all and
+only a vector scene is drawn.
+
+`WEUI_DATA_PLACEMENT` places the library's large static buffers in a named section (for
+example SRAM2 or CCM): image buffers, Game of Life cells, the plasma and aurora caches, the
+vector rasteriser accumulator, fill tables, span rows, stroke contour copy and demo paths.
+`WEUI_IMAGES_OPS_DATA_PLACEMENT` overrides the image buffers; it falls back to
+`WEUI_DATA_PLACEMENT`.
 
 Almost everything else is static. The QR widget allocates two qrcodegen buffers per call
 through `WEUI_ALLOC` / `WEUI_FREE`; `WeUi_Fs_ForceSync()` allocates one copy chunk through
@@ -243,5 +323,6 @@ metadata by name and `WeUi_Fs_Storage_Read()` loads pixels.
 
 `tests/` runs the library on the PC against `host/sim/display_sim.c`, under ASan and UBSan,
 with a virtual clock. Regression tests assert properties of the output; golden runs compare
-a hash of every pushed frame with a recorded reference and write PNGs to `out/`. See
-[tests/README.md](../tests/README.md).
+a hash of every pushed frame with a recorded reference and write PNGs to `out/`.
+`make BANDS=1` runs the tests with band output, `make FRAME_MEM=1` with effects composing
+on the frames as memory. See [tests/README.md](../tests/README.md).

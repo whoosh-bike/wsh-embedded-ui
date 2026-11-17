@@ -17,27 +17,33 @@ static u32 WeUi_Gfx_Effect_SaltRand(void) {
 	return ((u32)WeUi_Rand_Between(0, UINT16_MAX) << 16) | (u32)WeUi_Rand_Between(0, UINT16_MAX);
 }
 
-static void WeUi_Gfx_Effect_Compose_Dissolve(const WeUi_Gfx_Effect_Ctx_t* pcCtx) {
+/* A shuffled index array would cost a byte per pixel and cap the panel at 256 px: the noise is a
+ * hash, stable per pixel and salt. Pixels whose turn has not come keep the old picture; the last
+ * frame tops the threshold out and none survive */
+static void WeUi_Gfx_Effect_Row_Dissolve(const WeUi_Gfx_Effect_Ctx_t* pcCtx, WeUi_Gfx_PtPos_t y) {
 	u32 salt	 = *(const u32*)pcCtx->ParamsPtr;
 	u8 threshold = (u8)((u32)pcCtx->Frame * WEUI_GFX_EFFECT_NOISE_MAX / pcCtx->Frames);
 
-	for (WeUi_Gfx_PtPos_t y = 0; y < (WeUi_Gfx_PtPos_t)pcCtx->Height; y++) {
-		for (WeUi_Gfx_PtPos_t x = 0; x < (WeUi_Gfx_PtPos_t)pcCtx->Width; x++) {
-			/* A shuffled index array would cost a byte per pixel and cap the panel at
-			 * 256 px: the noise is a hash, stable per pixel and salt. Pixels whose turn
-			 * has not come go back to the old picture; the last frame tops the
-			 * threshold out and none survive */
-			if ((u8)WeUi_Rand_Hash((u32)x, (u32)y, salt) <= threshold)
-				continue;
+	WeUi_Gfx_PtPos_t width = (WeUi_Gfx_PtPos_t)pcCtx->Width;
+	WeUi_Gfx_Effect_Rows565_t rows;
 
-			WeUi_Gfx_Effect_PutOld(x, y, x, y);
-		}
+	if (WeUi_Gfx_Effect_Rows565(y, &rows)) {
+		for (WeUi_Gfx_PtPos_t x = 0; x < width; x++)
+			rows.pOut[x] = (u8)WeUi_Rand_Hash((u32)x, (u32)y, salt) <= threshold ? rows.pcNew[x]
+																				 : rows.pcOld[x];
+		return;
+	}
+	for (WeUi_Gfx_PtPos_t x = 0; x < width; x++) {
+		if ((u8)WeUi_Rand_Hash((u32)x, (u32)y, salt) <= threshold)
+			WeUi_Gfx_Effect_RowNewPx(x, x, y);
+		else
+			WeUi_Gfx_Effect_RowOldPx(x, x, y);
 	}
 }
 
 RET_STATE_t WeUi_Gfx_Effect_Dissolve(WeUi_Gfx_Effect_RenderCb_t renderIncoming, u16 frames) {
 	u32 salt = WeUi_Gfx_Effect_SaltRand();
 
-	return WeUi_Gfx_Effect_RunTransition(WeUi_Gfx_Effect_Compose_Dissolve, frames, &salt,
-										 renderIncoming);
+	return WeUi_Gfx_Effect_RunRows(WeUi_Gfx_Effect_Row_Dissolve, NULL, frames, &salt,
+								   renderIncoming);
 }

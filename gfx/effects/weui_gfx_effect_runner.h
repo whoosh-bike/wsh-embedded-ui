@@ -1,6 +1,7 @@
 #ifndef __WEUI_GFX_EFFECT_RUNNER_H
 #define __WEUI_GFX_EFFECT_RUNNER_H
 
+#include "def_types.h"
 #include "weui_gfx_effect_types.h"
 
 /**
@@ -50,5 +51,36 @@ RET_STATE_t WeUi_Gfx_Effect_RunSolo(WeUi_Gfx_Effect_FrameCb_t paint, u16 frames,
 RET_STATE_t WeUi_Gfx_Effect_RunTransition(WeUi_Gfx_Effect_FrameCb_t compose, u16 frames,
 										  const void* pcParams,
 										  WeUi_Gfx_Effect_RenderCb_t renderIncoming);
+
+/**
+ * @brief Play a transition that composes a row at a time (`row`): the same picture, the way
+ *        the driver allows the fastest.
+ *
+ * A driver that shows its frames as memory and takes bands (WEUI_DISPLAY_FRAME_MEM and
+ * WEUI_DISPLAY_BANDS) gets the frames composed band by band straight into its band buffers,
+ * from the old picture and the new one: `renderIncoming` is called once and the incoming scene
+ * holds still for the run, the frames are paced at the main rate, the last is pushed as a frame.
+ * Any other plays as RunTransition() does, with `compose` - or, NULL, the rows put back over
+ * the drawing frame one by one, which needs a `row` that reads the new picture only on its own
+ * row and below.
+ *
+ * @return RET_STATE_ERR_MEMORY if a band buffer holds no row; RET_STATE_ERR_BUSY if another
+ *         effect already owns the panel
+ */
+RET_STATE_t WeUi_Gfx_Effect_RunRows(WeUi_Gfx_Effect_RowCb_t row, WeUi_Gfx_Effect_FrameCb_t compose,
+									u16 frames, const void* pcParams,
+									WeUi_Gfx_Effect_RenderCb_t renderIncoming);
+
+/** Copy one old/new source pixel into the current row; out-of-frame sources are blank.
+ * Call only from a RunRows callback. New sources must obey RunRows in-place constraints. */
+void WeUi_Gfx_Effect_RowSample(const WeUi_Gfx_Effect_Ctx_t* ctx, s16 x, s16 sx, s16 sy, bool old);
+
+#if WEUI_DISPLAY_BANDS && WEUI_DISPLAY_FRAME_MEM
+/**
+ * @brief Whether RunRows() composes in bands where it can: on by default. Off, the incoming
+ *        scene is drawn live every frame, at the cost of the pace.
+ */
+void WeUi_Gfx_Effect_SetBands(bool on);
+#endif /* WEUI_DISPLAY_BANDS && WEUI_DISPLAY_FRAME_MEM */
 
 #endif /* __WEUI_GFX_EFFECT_RUNNER_H */

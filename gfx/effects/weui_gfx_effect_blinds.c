@@ -4,22 +4,18 @@
 
 #define WEUI_GFX_EFFECT_BLINDS_SLATS 5 /* down the panel */
 
-static void WeUi_Gfx_Effect_Compose_Blinds(const WeUi_Gfx_Effect_Ctx_t* pcCtx) {
-	WeUi_Gfx_PtPos_t height = (WeUi_Gfx_PtPos_t)pcCtx->Height;
-	float slat				= (float)height / WEUI_GFX_EFFECT_BLINDS_SLATS;
-	float open				= slat * WeUi_Gfx_Effect_Smooth(pcCtx->Progress);
+static void WeUi_Gfx_Effect_Row_Blinds(const WeUi_Gfx_Effect_Ctx_t* pcCtx, WeUi_Gfx_PtPos_t y) {
+	WeUi_Gfx_PtPos_t width = (WeUi_Gfx_PtPos_t)pcCtx->Width;
+	float slat			   = (float)pcCtx->Height / WEUI_GFX_EFFECT_BLINDS_SLATS;
+	float open			   = slat * WeUi_Gfx_Effect_Smooth(pcCtx->Progress);
+	float within		   = (float)y - slat * (float)(u32)((float)y / slat);
 
-	for (WeUi_Gfx_PtPos_t y = 0; y < height; y++) {
-		float within = (float)y - slat * (float)(u32)((float)y / slat);
-		if (within < open)
-			continue;
-
-		for (WeUi_Gfx_PtPos_t x = 0; x < (WeUi_Gfx_PtPos_t)pcCtx->Width; x++)
-			WeUi_Gfx_Effect_PutOld(x, y, x, y);
-	}
+	if (within < open)
+		WeUi_Gfx_Effect_RowNew(0, 0, y, width);
+	else
+		WeUi_Gfx_Effect_RowOld(0, 0, y, width);
 }
 
 RET_STATE_t WeUi_Gfx_Effect_Blinds(WeUi_Gfx_Effect_RenderCb_t renderIncoming, u16 frames) {
-	return WeUi_Gfx_Effect_RunTransition(WeUi_Gfx_Effect_Compose_Blinds, frames, NULL,
-										 renderIncoming);
+	return WeUi_Gfx_Effect_RunRows(WeUi_Gfx_Effect_Row_Blinds, NULL, frames, NULL, renderIncoming);
 }

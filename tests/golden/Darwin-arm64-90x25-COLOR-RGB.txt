@@ -10,3 +10,10 @@ hash fractal_tree     frames   151 7a00f1e73ca7565d
 hash life             frames   152 94249b0641907dc9
 hash effects          frames   201 468972d5a37eef19
 hash fields           frames   933 03168f502a8d7b42
+hash affine           frames   151 c2d82425f55ac488
+hash paths            frames   151 7b62c68212c62831
+hash fills            frames   151 cc34cf2531e19d6b
+hash gradients        frames   151 285dc240dac2e459
+hash strokes          frames   151 457e803256d1a46e
+hash eyes             frames   151 1d4c88502ecfb2f6
+hash scene            frames   151 251deca76f7682e9

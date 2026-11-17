@@ -95,36 +95,6 @@ float WeUi_Gfx_Transform_GammaEncode(float color) {
 	return color * (float)(WEUI_COLOR_CHANNEL_MAX);
 }
 
-u32 WeUi_Gfx_Transform_Color2Bytes(WeUi_Gfx_Color_t color) {
-	u32 bytesColor = (u32)color.R;
-
-#if defined(WEUI_LIB_COLOR_SCHEME__RGB)
-	bytesColor |= ((u32)color.G << 8) | ((u32)color.B << 16);
-#endif /* defined(WEUI_LIB_COLOR_SCHEME__RGB) */
-
-#if WEUI_LIB_COLOR_ALPHA_CHANNEL
-	bytesColor |= ((u32)color.A << 24);
-#endif /* WEUI_LIB_COLOR_ALPHA_CHANNEL */
-
-	return bytesColor;
-}
-
-WeUi_Gfx_Color_t WeUi_Gfx_Transform_Bytes2Color(u32 value) {
-	WeUi_Gfx_Color_t color = {0};
-	color.R				   = value & WEUI_COLOR_CHANNEL_MAX;
-
-#if defined(WEUI_LIB_COLOR_SCHEME__RGB)
-	color.G = (value >> 8) & WEUI_COLOR_CHANNEL_MAX;
-	color.B = (value >> 16) & WEUI_COLOR_CHANNEL_MAX;
-#endif /* defined(WEUI_LIB_COLOR_SCHEME__RGB) */
-
-#if WEUI_LIB_COLOR_ALPHA_CHANNEL
-	color.A = (value >> 24) & WEUI_COLOR_CHANNEL_MAX;
-#endif /* WEUI_LIB_COLOR_ALPHA_CHANNEL */
-
-	return color;
-}
-
 WeUi_Gfx_Color_t WeUi_Gfx_Transform_Rgba2Color(WeUi_Gfx_ColorChannel_t r, WeUi_Gfx_ColorChannel_t g,
 											   WeUi_Gfx_ColorChannel_t b,
 											   WeUi_Gfx_ColorChannel_t a) {

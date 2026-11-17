@@ -36,6 +36,7 @@ WEUI_INC := \
 	-I$(WEUI_DIR)/gfx/scenemgr \
 	-I$(WEUI_DIR)/gfx/sim \
 	-I$(WEUI_DIR)/gfx/text \
+	-I$(WEUI_DIR)/gfx/vector \
 	-I$(WEUI_DIR)/gfx/widgets
 
 ifneq ($(WEUI_USE_DEMO),1)

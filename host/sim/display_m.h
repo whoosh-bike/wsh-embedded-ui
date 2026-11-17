@@ -36,6 +36,14 @@ void DisplayM_SaveFrame_DisplayToAux(void);
 void DisplayM_FillDrawingFrame(u32 color);
 void DisplayM_FillDisplayAndDrawingFrames(u32 color);
 
+/* A frame as memory, for a build with WEUI_DISPLAY_FRAME_MEM on: frame 0 drawing, 1 display,
+ * 2 aux; px 0 for a u32 a pixel as the raw accessors take them, 1 for 565, 2 for 565 high byte
+ * first. NULL for a frame not kept */
+void* DisplayM_GetFrameMem(u8 frame, u32* pStride, u8* pPx);
+/* Bands of 565 pixels, for a build with WEUI_DISPLAY_BANDS on */
+u16* DisplayM_BandGet(u32* pPixels);
+void DisplayM_BandSend(u16 x0, u16 y0, u16 x1, u16 y1, u16* pBuf);
+
 /** @brief Called with every frame DrawFrame pushes */
 typedef void (*DisplaySim_FrameHook_t)(const u32* pcFrame, u32 idx);
 

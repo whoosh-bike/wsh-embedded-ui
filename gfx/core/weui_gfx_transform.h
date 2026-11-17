@@ -8,6 +8,9 @@
 #define WEUI_TRANSFORM_BRIGHTNESS_DEF 0.0f
 #define WEUI_TRANSFORM_CONTRAST_DEF	  1.0f
 
+/* 3D points, one step at a time. 2D shapes compose and invert their transforms through
+ * weui_gfx_affine.h instead. */
+
 /** @brief Rotate 3D point around axis. Returns new point; does not modify original. */
 WeUi_Gfx_ThreeCoord_t WeUi_Gfx_Transform_Rotate(WeUi_Gfx_ThreeCoord_t* pOldPt, s16 angle,
 												WEUI_THREE_AXES_t axe);
@@ -35,11 +38,38 @@ float WeUi_Gfx_Transform_GammaDecode(float color);
 /** @brief Linear light -> sRGB (gamma encode). Input/output range [0, 255]. */
 float WeUi_Gfx_Transform_GammaEncode(float color);
 
-/** @brief Pack WeUi_Gfx_Color_t into u32: R | (G<<8) | (B<<16) | (A<<24) */
-u32 WeUi_Gfx_Transform_Color2Bytes(WeUi_Gfx_Color_t color);
+/** @brief Pack WeUi_Gfx_Color_t into u32: R | (G<<8) | (B<<16) | (A<<24). Inline: effects
+ *         call it a pixel at a time */
+static inline u32 WeUi_Gfx_Transform_Color2Bytes(WeUi_Gfx_Color_t color) {
+	u32 bytesColor = (u32)color.R;
+
+#if defined(WEUI_LIB_COLOR_SCHEME__RGB)
+	bytesColor |= ((u32)color.G << 8) | ((u32)color.B << 16);
+#endif /* defined(WEUI_LIB_COLOR_SCHEME__RGB) */
+
+#if WEUI_LIB_COLOR_ALPHA_CHANNEL
+	bytesColor |= ((u32)color.A << 24);
+#endif /* WEUI_LIB_COLOR_ALPHA_CHANNEL */
+
+	return bytesColor;
+}
 
 /** @brief Unpack u32 to WeUi_Gfx_Color_t */
-WeUi_Gfx_Color_t WeUi_Gfx_Transform_Bytes2Color(u32 value);
+static inline WeUi_Gfx_Color_t WeUi_Gfx_Transform_Bytes2Color(u32 value) {
+	WeUi_Gfx_Color_t color = {0};
+	color.R				   = value & WEUI_COLOR_CHANNEL_MAX;
+
+#if defined(WEUI_LIB_COLOR_SCHEME__RGB)
+	color.G = (value >> 8) & WEUI_COLOR_CHANNEL_MAX;
+	color.B = (value >> 16) & WEUI_COLOR_CHANNEL_MAX;
+#endif /* defined(WEUI_LIB_COLOR_SCHEME__RGB) */
+
+#if WEUI_LIB_COLOR_ALPHA_CHANNEL
+	color.A = (value >> 24) & WEUI_COLOR_CHANNEL_MAX;
+#endif /* WEUI_LIB_COLOR_ALPHA_CHANNEL */
+
+	return color;
+}
 
 /** @brief Create WeUi_Gfx_Color_t from individual RGBA byte channels */
 WeUi_Gfx_Color_t WeUi_Gfx_Transform_Rgba2Color(WeUi_Gfx_ColorChannel_t r, WeUi_Gfx_ColorChannel_t g,

@@ -17,6 +17,8 @@ Repository: `wsh-embedded-ui` · project name: `weui`.
 - **Images and animation** - assets in RAM, internal flash or external flash, LZ4
   decompression, Floyd-Steinberg dithering.
 - **Effects** - 19 scene transitions, plasma/perlin/static painters, solo animations.
+- **Vector core** - affine transforms, paths, antialiased fills, linear and radial
+  gradients, strokes, masks, damage-tracked scenes; draws to a frame or in bands.
 - **Scene manager** - app-supplied scene table, message ring, FPS pacing, timeouts,
   an app-wide overlay, transitions on a switch.
 - **Colour** - RGB or grayscale; 1, 3 or 4 bytes per pixel.
@@ -92,6 +94,7 @@ calls `WeUi_Gfx_SceneMgr_Poll()` and sleeps for the interval it returns.
 | `gfx/text/` | u8g2 text rendering |
 | `gfx/image/` | images and dithering |
 | `gfx/anima/` | frame playback and compressed packets |
+| `gfx/vector/` | vector core: affine, paths, raster, fills, masks, strokes, scenes |
 | `gfx/effects/` | painters, solo effects and transitions (see `EFFECTS.md`) |
 | `gfx/widgets/` | QR code and wrapped text block |
 | `gfx/scenemgr/` | scene engine, message ring, timeouts, overlay |

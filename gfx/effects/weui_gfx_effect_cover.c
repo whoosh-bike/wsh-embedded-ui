@@ -67,9 +67,7 @@ static void WeUi_Gfx_Effect_Compose_Cover(const WeUi_Gfx_Effect_Ctx_t* pcCtx) {
 					continue;
 				}
 
-				WeUi_Gfx_Point_t dst = {.X = x, .Y = y};
-				WeUi_Gfx_Point_t src = {.X = sx, .Y = sy};
-				WeUi_Gfx_Adapter_SetPixelRaw(&dst, WeUi_Gfx_Adapter_GetPixelRaw(&src));
+				WeUi_Gfx_Effect_MoveNew(x, y, sx, sy);
 			}
 		}
 		return;
@@ -87,11 +85,50 @@ static void WeUi_Gfx_Effect_Compose_Cover(const WeUi_Gfx_Effect_Ctx_t* pcCtx) {
 	}
 }
 
+/* The same picture a row at a time: the moving picture shifted by (dx, dy), the standing one
+ * wherever the moving one is not */
+static void WeUi_Gfx_Effect_Row_Cover(const WeUi_Gfx_Effect_Ctx_t* pcCtx, WeUi_Gfx_PtPos_t y) {
+	const WeUi_Gfx_Effect_CoverParams_t* pcParams = pcCtx->ParamsPtr;
+	WeUi_Gfx_PtPos_t width						  = (WeUi_Gfx_PtPos_t)pcCtx->Width;
+	WeUi_Gfx_PtPos_t height						  = (WeUi_Gfx_PtPos_t)pcCtx->Height;
+	bool vertical = pcParams->Slide == WEUI_GFX_EFFECT_SLIDE_DOWN ||
+					pcParams->Slide == WEUI_GFX_EFFECT_SLIDE_UP;
+	WeUi_Gfx_PtPos_t span = vertical ? height : width;
+	float travel		  = (float)span * WeUi_Gfx_Effect_Smooth(pcCtx->Progress);
+	WeUi_Gfx_PtPos_t offset =
+		(WeUi_Gfx_PtPos_t)((pcParams->Cover ? (float)span - travel : travel) + 0.5f);
+	WeUi_Gfx_PtPos_t dx, dy;
+	WeUi_Gfx_Effect_CoverShift(pcParams->Slide, offset, &dx, &dy);
+	if (pcParams->Cover) {
+		dx = -dx;
+		dy = -dy;
+	}
+
+	WeUi_Gfx_PtPos_t sy = y - dy;
+	WeUi_Gfx_PtPos_t x0 = GET_MAX(dx, 0), x1 = GET_MIN(width + dx, width);
+	if (sy < 0 || sy >= height || x1 <= x0) {
+		if (pcParams->Cover)
+			WeUi_Gfx_Effect_RowOld(0, 0, y, width);
+		else
+			WeUi_Gfx_Effect_RowNew(0, 0, y, width);
+		return;
+	}
+	if (pcParams->Cover) {
+		WeUi_Gfx_Effect_RowOld(0, 0, y, x0);
+		WeUi_Gfx_Effect_RowNew(x0, x0 - dx, sy, x1 - x0);
+		WeUi_Gfx_Effect_RowOld(x1, x1, y, width - x1);
+		return;
+	}
+	WeUi_Gfx_Effect_RowNew(0, 0, y, x0);
+	WeUi_Gfx_Effect_RowOld(x0, x0 - dx, sy, x1 - x0);
+	WeUi_Gfx_Effect_RowNew(x1, x1, y, width - x1);
+}
+
 RET_STATE_t WeUi_Gfx_Effect_Cover(WeUi_Gfx_Effect_RenderCb_t renderIncoming, u16 frames,
 								  WEUI_GFX_EFFECT_SLIDE_t slide, WEUI_GFX_EFFECT_COVER_t mode) {
 	WeUi_Gfx_Effect_CoverParams_t params = {.Slide = slide,
 											.Cover = mode == WEUI_GFX_EFFECT_COVER_IN};
 
-	return WeUi_Gfx_Effect_RunTransition(WeUi_Gfx_Effect_Compose_Cover, frames, &params,
-										 renderIncoming);
+	return WeUi_Gfx_Effect_RunRows(WeUi_Gfx_Effect_Row_Cover, WeUi_Gfx_Effect_Compose_Cover, frames,
+								   &params, renderIncoming);
 }
