@@ -10,7 +10,7 @@
 #define WEUI_GFX_LIFE_ALIVE		  (WEUI_GFX_LIFE_CURR_MASK | WEUI_GFX_LIFE_NEXT_MASK)
 #define WEUI_GFX_LIFE_PCNT		  100
 
-static u8 Cells[WEUI_DISPLAY_WIDTH][WEUI_DISPLAY_HEIGHT];
+static u8 WEUI_DATA_PLACEMENT Cells[WEUI_DISPLAY_WIDTH][WEUI_DISPLAY_HEIGHT];
 static WeUi_Gfx_PtPos_t Width;
 static WeUi_Gfx_PtPos_t Height;
 static bool Wrap;

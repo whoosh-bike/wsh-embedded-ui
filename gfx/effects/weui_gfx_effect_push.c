@@ -132,7 +132,7 @@ static void WeUi_Gfx_Effect_SlideDrawnPixel(WeUi_Gfx_Effect_SlideAxis_t axis,
 	WeUi_Gfx_Point_t src = WeUi_Gfx_Effect_SlidePt(axis, srcAlong, cross, span);
 	WeUi_Gfx_Point_t dst = WeUi_Gfx_Effect_SlidePt(axis, dstAlong, cross, span);
 
-	WeUi_Gfx_Adapter_SetPixelRaw(&dst, WeUi_Gfx_Adapter_GetPixelRaw(&src));
+	WeUi_Gfx_Effect_MoveNew(dst.X, dst.Y, src.X, src.Y);
 }
 
 static void WeUi_Gfx_Effect_Compose_Push(const WeUi_Gfx_Effect_Ctx_t* pcCtx) {
@@ -171,15 +171,67 @@ static void WeUi_Gfx_Effect_Compose_Push(const WeUi_Gfx_Effect_Ctx_t* pcCtx) {
 		for (WeUi_Gfx_PtPos_t a = slid; a < span; a++) {
 			WeUi_Gfx_Point_t src = WeUi_Gfx_Effect_SlidePt(axis, a - offset, cross, span);
 			WeUi_Gfx_Point_t dst = WeUi_Gfx_Effect_SlidePt(axis, a, cross, span);
-			WeUi_Gfx_Adapter_SetPixelRaw(&dst, WeUi_Gfx_Adapter_GetPixelRaw_Aux(&src));
+			WeUi_Gfx_Effect_PutOld(dst.X, dst.Y, src.X, src.Y);
 		}
 
 		/* Last: the slide reads these lines on its way past, so blanking them any
 		 * earlier would drag the gap along with it, twice its width */
 		for (WeUi_Gfx_PtPos_t a = 0; a < gap; a++) {
 			WeUi_Gfx_Point_t dst = WeUi_Gfx_Effect_SlidePt(axis, a, cross, span);
-			WeUi_Gfx_Adapter_SetPixelRaw(&dst, blank);
+			WeUi_Gfx_Effect_SetNew(dst.X, dst.Y, blank);
 		}
+	}
+}
+
+/* The same picture a row at a time. Along the slide, from its leading side: the gap left by an
+ * overshoot, blank; the incoming picture from `shift` back; the old one from `offset` back */
+static void WeUi_Gfx_Effect_Row_Push(const WeUi_Gfx_Effect_Ctx_t* pcCtx, WeUi_Gfx_PtPos_t y) {
+	const WeUi_Gfx_Effect_PushParams_t* pcParams = pcCtx->ParamsPtr;
+	WeUi_Gfx_Effect_SlideAxis_t axis			 = WeUi_Gfx_Effect_SlideAxis(pcParams->Slide);
+	WeUi_Gfx_PtPos_t width						 = (WeUi_Gfx_PtPos_t)pcCtx->Width;
+	WeUi_Gfx_PtPos_t span = (WeUi_Gfx_PtPos_t)(axis.Vertical ? pcCtx->Height : pcCtx->Width);
+
+	float travel = WeUi_Gfx_Effect_PushTravel(pcParams->CfgPtr, pcCtx->Progress, (float)span);
+	WeUi_Gfx_PtPos_t offset	  = (WeUi_Gfx_PtPos_t)(travel + 0.5f);
+	WeUi_Gfx_PtPos_t shift	  = offset - span;
+	WeUi_Gfx_PtPos_t gap	  = (shift > 0) ? ((shift < span) ? shift : span) : 0;
+	WeUi_Gfx_PtPos_t slid	  = (shift > 0) ? span : offset;
+	WeUi_Gfx_ColorRaw_t blank = WeUi_Gfx_Effect_Blank();
+
+	if (axis.Vertical) {
+		WeUi_Gfx_PtPos_t a = axis.Reverse ? span - 1 - y : y;
+		if (a < gap) {
+			WeUi_Gfx_Effect_RowFill(0, width, blank);
+			return;
+		}
+		bool next			 = a < slid;
+		WeUi_Gfx_PtPos_t src = a - (next ? shift : offset);
+		WeUi_Gfx_PtPos_t sy	 = axis.Reverse ? span - 1 - src : src;
+		if (next)
+			WeUi_Gfx_Effect_RowNew(0, 0, sy, width);
+		else
+			WeUi_Gfx_Effect_RowOld(0, 0, sy, width);
+		return;
+	}
+
+	/* A stretch [a0; a1) along, read from `back` behind: reversed, it runs the other way along
+	 * the row and reads `back` ahead */
+	const struct {
+		WeUi_Gfx_PtPos_t A0, A1, Back;
+		u8 What; /* 0 blank, 1 incoming, 2 old */
+	} stretches[] = {{0, gap, 0, 0}, {gap, slid, shift, 1}, {slid, span, offset, 2}};
+	for (u32 i = 0; i < NUM_ELEMENTS(stretches); i++) {
+		WeUi_Gfx_PtPos_t n = stretches[i].A1 - stretches[i].A0;
+		if (n <= 0)
+			continue;
+		WeUi_Gfx_PtPos_t x	= axis.Reverse ? span - stretches[i].A1 : stretches[i].A0;
+		WeUi_Gfx_PtPos_t sx = axis.Reverse ? x + stretches[i].Back : x - stretches[i].Back;
+		if (stretches[i].What == 0)
+			WeUi_Gfx_Effect_RowFill(x, n, blank);
+		else if (stretches[i].What == 1)
+			WeUi_Gfx_Effect_RowNew(x, sx, y, n);
+		else
+			WeUi_Gfx_Effect_RowOld(x, sx, y, n);
 	}
 }
 
@@ -204,6 +256,6 @@ RET_STATE_t WeUi_Gfx_Effect_Push(WeUi_Gfx_Effect_RenderCb_t renderIncoming, u16 
 
 	WeUi_Gfx_Effect_PushParams_t params = {.Slide = slide, .CfgPtr = pcCfg};
 
-	return WeUi_Gfx_Effect_RunTransition(WeUi_Gfx_Effect_Compose_Push, frames, &params,
-										 renderIncoming);
+	return WeUi_Gfx_Effect_RunRows(WeUi_Gfx_Effect_Row_Push, WeUi_Gfx_Effect_Compose_Push, frames,
+								   &params, renderIncoming);
 }

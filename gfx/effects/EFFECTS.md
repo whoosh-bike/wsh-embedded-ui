@@ -7,7 +7,8 @@ name on it.
 
 ## Common to all transitions
 
-- `frames` is the length of the run, paced by whoever draws the incoming scene. Think of
+- `frames` is the length of the run, paced by whoever draws the incoming scene - or, in bands,
+  by the runner at the main rate. Think of
   it in ms: `WeUi_Gfx_Effect_Frames(ms, fps)` turns a length into frames at the rate they
   will be drawn.
 - `renderIncoming` draws one live frame of the arriving scene: it must clear the drawing
@@ -17,6 +18,17 @@ name on it.
   playing: they cannot nest.
 - No transition takes a frame buffer of its own - the drawing frame and the aux frame are
   all there is, which is why some of them work in a set order.
+- A pixel goes through the driver one call at a time, unless the driver shows its frames as
+  memory (`WEUI_DISPLAY_FRAME_MEM`): then the composes work on them directly, and a big panel
+  can afford them. Effects reach pixels only through `compose.h`, so that both ways stay one.
+- A driver that shows its frames and takes bands (`WEUI_DISPLAY_BANDS` too) gets every
+  transition but `Ripple` composed band by band straight into its band buffers: the incoming
+  scene is drawn once and holds still for the run, the frames are paced at the main rate, and
+  nothing is drawn again or copied about. Where pictures and bands are 5-6-5 alike, `Fade`,
+  `Flash`, `Dim`, `Rotate` and `Pixelate` mix in 5-6-5, 32 steps of a weight.
+  `WeUi_Gfx_Effect_SetBands(false)` plays the scene live, the old way.
+- Sizes are shares of the panel, so a big one looks as an LED one does - but for the column
+  width of `Rain` and `Melt`, the caller's: a few px are threads on a 466 px panel.
 
 ## Between scenes
 
@@ -75,8 +87,8 @@ slows every transition down for a closer look.
 | `Blocks` | The new picture turns over block by block, in scattered order | A dissolve in 6x5 blocks; the order is the same every run |
 | `Blinds` | The new picture opens slat by slat, each slat from its top | Five slats down the panel |
 | `Reload` | The old picture is wiped off left to right to black, the new one drawn in the same way | Half the run dark-going, half coming |
-| `Wave` | The new picture floods in left to right behind a wavering front | |
-| `Rain` | The new picture runs down column by column, each starting when it will | `columnPx` sets the column width: 1 is a drizzle, wider falls in sheets |
+| `Wave` | The new picture floods in left to right behind a wavering front | Two crests down the panel, wavering a fifteenth of its width |
+| `Rain` | The new picture runs down column by column, each starting when it will | `columnPx` sets the column width: 1 is a drizzle, wider falls in sheets; size it to the panel |
 | `Melt` | The old picture's columns sag and drop off, the new one above | `columnPx` as for `Rain`; a few px melt in chunks as Doom's screen did |
 | `Ripple` | The new picture spreads out of the centre behind a wavering, lit crest | `WEUI_GFX_EFFECT_RIPPLE_DIAMOND` makes it a diamond reaching every corner at once. The costliest: `atan2` and a root per pixel |
 
@@ -90,15 +102,23 @@ slows every transition down for a closer look.
 
 ## Writing one
 
-A transition is a compose callback handed to `WeUi_Gfx_Effect_RunTransition`: per frame
-the runner draws the incoming scene, calls the compose with the progress, then pushes.
-The compose puts the old picture - parked in the aux frame - back over the new one
-wherever the old one still shows. `weui_gfx_effect_compose.h` is its kit, private to
-`effects/`: `PutOld`/`PutOldFrame` for the old picture's pixels, `Smooth` for the default
-ease, and `Blank`, `Lighten`, `Turn`, `ColumnRun`. Pixels move raw, so the driver's
-brightness is not applied twice.
+A transition is a row compose handed to `WeUi_Gfx_Effect_RunRows`: it writes one row of the
+frame, all of it, from the two pictures - the old one parked in the aux frame, the new one in the
+drawing frame - into `WeUi_Gfx_Effect_Out`. Rows come top to bottom, from 0 every frame, so what
+a frame shares between its rows (a column's turn, a grid) is worked out on row 0.
+`weui_gfx_effect_compose.h` is its kit, private to `effects/`: `RowOld`/`RowNew` for a run of a
+picture's pixels from anywhere, `RowOldPx`/`RowNewPx` for one, `RowFill`, `RowSet`, `RowFaded`,
+`Rows565` for loops in 5-6-5, `Smooth` for the default ease, and `Blank`, `Lighten`, `Turn`,
+`ColumnRun`. Pixels move raw, so the driver's brightness is not applied twice.
+
+Without bands the runner puts the rows back over the drawing frame one by one, the incoming
+scene drawn into it every frame - which needs a row that reads the new picture only on its own
+row and below. One that does not (a zoom, a slide up or down) also hands `RunRows` a frame
+compose that works on the drawing frame in place, as `RunTransition` takes it: it puts the old
+picture back over the new one wherever the old one still shows, with `PutOld`, `MoveNew` and
+`SetNew`. `make run BANDS=1 FRAME_MEM=1` holds the two to each other frame by frame.
 
 A solo effect is a paint callback handed to `WeUi_Gfx_Effect_RunSolo`.
 
-A new effect gets a file pair of its own, a line in `weui_gfx_effects.h`, a row here and
-a step in the transitions demo.
+A new effect gets a file pair of its own, a line in `weui_gfx_effects.h`, a row here, a step in
+the transitions demo and a line in the tests' `Test_TransitionsInBands`.

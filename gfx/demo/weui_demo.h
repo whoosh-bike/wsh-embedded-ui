@@ -67,6 +67,29 @@ void WeUi_DrawDemo_FieldToxic(void);
  */
 void WeUi_DrawDemo_Ramps(void);
 
+/* weui_demo_vector.c - the vector core, a piece at a time */
+
+/** @brief Squares nested on a transform stack: a body, a planet on its orbit, its moon */
+void WeUi_DrawDemo_Affine(void);
+
+/** @brief A circle, a heart, a leaf and a star as paths: curves cut finer the larger drawn */
+void WeUi_DrawDemo_Paths(void);
+
+/** @brief The same shapes filled, antialiased, their edges blended over stripes */
+void WeUi_DrawDemo_Fills(void);
+
+/** @brief Linear and radial gradients, soft spots and a see-through shape over them */
+void WeUi_DrawDemo_Gradients(void);
+
+/** @brief Lines of three widths, a cat's mouth, a zigzag joined each way, an outlined heart */
+void WeUi_DrawDemo_Strokes(void);
+
+/** @brief Two eyes through masks: an iris inside the eye and its lids, a crescent glint */
+void WeUi_DrawDemo_Eyes(void);
+
+/** @brief A face as a scene, redrawn only where it changed; a bar shows how much that is */
+void WeUi_DrawDemo_Scene(void);
+
 /* weui_demo_round.c - the table of the demos a round plays, in its order */
 typedef struct {
 	const char* Name;

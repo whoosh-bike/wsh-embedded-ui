@@ -124,6 +124,19 @@ WeUi_Gfx_ColorRaw_t WeUi_Gfx_Adapter_GetPixelRaw_Aux(const WeUi_Gfx_Point_t* pcP
 	return DisplayM_GetPixelAux(WeUi_Gfx_Adapter_MapX(pcPt->X), WeUi_Gfx_Adapter_MapY(pcPt->Y));
 }
 
+bool WeUi_Gfx_Adapter_FrameMem(WEUI_GFX_FRAME_t frame, WeUi_Gfx_FrameMem_t* pMem) {
+#if WEUI_DISPLAY_FRAME_MEM && !WEUI_DISPLAY_FLIP_X && !WEUI_DISPLAY_FLIP_Y
+	u8 px	   = 0;
+	pMem->pBuf = DisplayM_GetFrameMem((u8)frame, &pMem->Stride, &px);
+	pMem->Px   = (WEUI_GFX_FRAME_PX_t)px;
+	return pMem->pBuf != NULL && px <= WEUI_GFX_FRAME_PX_RGB565_BE;
+#else
+	(void)frame;
+	(void)pMem;
+	return false;
+#endif
+}
+
 void WeUi_Gfx_Adapter_ClearDrawingFrame(void) {
 	DisplayM_FillDrawingFrame(WeUi_Gfx_Transform_FillBytesFromChannel(CachedParams.ColorMin));
 }
@@ -144,3 +157,13 @@ void WeUi_Gfx_Adapter_DrawFrame(void) {
 void WeUi_Gfx_Adapter_CopyFrame_DisplayToDrawing(void) {
 	DisplayM_CopyFrame_DisplayToDrawing();
 }
+
+#if WEUI_DISPLAY_BANDS
+u16* WeUi_Gfx_Adapter_BandGet(u32* pPixels) {
+	return DisplayM_BandGet(pPixels);
+}
+
+void WeUi_Gfx_Adapter_BandSend(u16 x0, u16 y0, u16 x1, u16 y1, u16* pBuf) {
+	DisplayM_BandSend(x0, y0, x1, y1, pBuf);
+}
+#endif /* WEUI_DISPLAY_BANDS */

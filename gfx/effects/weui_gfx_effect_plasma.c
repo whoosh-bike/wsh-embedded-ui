@@ -26,9 +26,10 @@ static const WeUi_Gfx_Effect_PlasmaCfg_t WeUi_Gfx_Effect_PlasmaCfg_Def = {
  * sin(x + y), each on one coordinate sum only, which turns 3 * W * H sines into
  * W + H + (W + H). Static rather than automatic - at panel size these run into
  * kilobytes, and the render task's stack is not where that belongs */
-static float WeUi_Gfx_Effect_Plasma_WaveX[WEUI_DISPLAY_WIDTH];
-static float WeUi_Gfx_Effect_Plasma_WaveY[WEUI_DISPLAY_HEIGHT];
-static float WeUi_Gfx_Effect_Plasma_WaveDiag[WEUI_DISPLAY_WIDTH + WEUI_DISPLAY_HEIGHT];
+static float WEUI_DATA_PLACEMENT WeUi_Gfx_Effect_Plasma_WaveX[WEUI_DISPLAY_WIDTH];
+static float WEUI_DATA_PLACEMENT WeUi_Gfx_Effect_Plasma_WaveY[WEUI_DISPLAY_HEIGHT];
+static float WEUI_DATA_PLACEMENT
+	WeUi_Gfx_Effect_Plasma_WaveDiag[WEUI_DISPLAY_WIDTH + WEUI_DISPLAY_HEIGHT];
 
 const WeUi_Gfx_Effect_PlasmaCfg_t* WeUi_Gfx_Effect_PlasmaCfg_Default(void) {
 	return &WeUi_Gfx_Effect_PlasmaCfg_Def;

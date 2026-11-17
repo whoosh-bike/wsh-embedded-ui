@@ -13,12 +13,3 @@ s32 WeUi_Rand_Hue(void) {
 bool WeUi_Rand_Bool(void) {
 	return (rand() & 1) != 0;
 }
-
-u32 WeUi_Rand_Hash(u32 x, u32 y, u32 salt) {
-	u32 hash = x * 73856093u ^ y * 19349663u ^ salt * 83492791u;
-	hash ^= hash >> 13;
-	hash *= 0x5bd1e995u;
-	hash ^= hash >> 15;
-
-	return hash;
-}

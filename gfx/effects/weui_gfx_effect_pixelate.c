@@ -1,6 +1,6 @@
 #include "weui_gfx_effect_pixelate.h"
 #include "mathlib_common.h"
-#include "weui_gfx_adapter.h"
+#include "weui_gfx_effect_compose.h"
 #include "weui_gfx_effect_runner.h"
 #include "weui_gfx_transform.h"
 
@@ -8,12 +8,47 @@
  * stand for the whole picture - abstract enough to hide the swap */
 #define WEUI_GFX_EFFECT_PIXELATE_BLOCK_SHARE 0.35f
 
-/** @brief One block of the drawing frame filled with its mean, off aux or drawing */
-static void WeUi_Gfx_Effect_PixelateBlock(WeUi_Gfx_PtPos_t x0, WeUi_Gfx_PtPos_t y0,
-										  WeUi_Gfx_PtPos_t x1, WeUi_Gfx_PtPos_t y1, bool fromAux) {
-	/* The edge blocks of a centred grid can fall wholly off the panel */
-	if (x1 <= x0 || y1 <= y0)
-		return;
+/* A frame's grid, laid on its first row, and the means of the row of blocks being composed:
+ * worked out on its first row, from rows not composed yet */
+typedef struct {
+	WeUi_Gfx_PtPos_t Block;
+	WeUi_Gfx_PtPos_t StartX;
+	WeUi_Gfx_PtPos_t StartY;
+	s32 MeansRow;
+	WeUi_Gfx_ColorRaw_t Means[WEUI_DISPLAY_WIDTH + 2]; /* a block a px, cut at both edges */
+} WeUi_Gfx_Effect_PixelateGrid_t;
+
+static WeUi_Gfx_Effect_PixelateGrid_t WeUi_Gfx_Effect_Grid;
+
+/** @brief The mean of a block in the 5-6-5 a frame keeps, while the row is 5-6-5 too */
+static WeUi_Gfx_ColorRaw_t WeUi_Gfx_Effect_PixelateMean565(const WeUi_Gfx_FrameMem_t* pcSrc,
+														   WeUi_Gfx_PtPos_t x0, WeUi_Gfx_PtPos_t y0,
+														   WeUi_Gfx_PtPos_t x1,
+														   WeUi_Gfx_PtPos_t y1) {
+	bool be = pcSrc->Px == WEUI_GFX_FRAME_PX_RGB565_BE;
+	u32 red = 0, green = 0, blue = 0;
+	u32 count = (u32)(x1 - x0) * (u32)(y1 - y0);
+
+	for (WeUi_Gfx_PtPos_t y = y0; y < y1; y++) {
+		const u16* pcRow = &((const u16*)pcSrc->pBuf)[WeUi_Gfx_Effect_At(pcSrc, x0, y)];
+		for (WeUi_Gfx_PtPos_t i = 0; i < x1 - x0; i++) {
+			u32 px = be ? __builtin_bswap16(pcRow[i]) : pcRow[i];
+			red += px >> 11;
+			green += (px >> 5) & 0x3Fu;
+			blue += px & 0x1Fu;
+		}
+	}
+	return WeUi_Gfx_Adapter_RawFrom565(
+		(u16)((red / count) << 11 | (green / count) << 5 | blue / count));
+}
+
+/** @brief The mean colour of a block, off the old picture or the new one */
+static WeUi_Gfx_ColorRaw_t WeUi_Gfx_Effect_PixelateMean(WeUi_Gfx_PtPos_t x0, WeUi_Gfx_PtPos_t y0,
+														WeUi_Gfx_PtPos_t x1, WeUi_Gfx_PtPos_t y1,
+														bool fromOld) {
+	if (WeUi_Gfx_Effect_Out565())
+		return WeUi_Gfx_Effect_PixelateMean565(
+			fromOld ? &WeUi_Gfx_Effect_Mem.Old : &WeUi_Gfx_Effect_Mem.New, x0, y0, x1, y1);
 
 	u32 red = 0, count = 0;
 #if defined(WEUI_LIB_COLOR_SCHEME__RGB)
@@ -22,11 +57,9 @@ static void WeUi_Gfx_Effect_PixelateBlock(WeUi_Gfx_PtPos_t x0, WeUi_Gfx_PtPos_t 
 
 	for (WeUi_Gfx_PtPos_t y = y0; y < y1; y++) {
 		for (WeUi_Gfx_PtPos_t x = x0; x < x1; x++) {
-			WeUi_Gfx_Point_t pt = {.X = x, .Y = y};
 			WeUi_Gfx_ColorRaw_t raw =
-				fromAux ? WeUi_Gfx_Adapter_GetPixelRaw_Aux(&pt) : WeUi_Gfx_Adapter_GetPixelRaw(&pt);
+				fromOld ? WeUi_Gfx_Effect_GetOld(x, y) : WeUi_Gfx_Effect_GetNew(x, y);
 			WeUi_Gfx_Color_t color = WeUi_Gfx_Transform_Bytes2Color(raw);
-
 			red += color.R;
 #if defined(WEUI_LIB_COLOR_SCHEME__RGB)
 			green += color.G;
@@ -41,44 +74,61 @@ static void WeUi_Gfx_Effect_PixelateBlock(WeUi_Gfx_PtPos_t x0, WeUi_Gfx_PtPos_t 
 	mean.G = (WeUi_Gfx_ColorChannel_t)(green / count);
 	mean.B = (WeUi_Gfx_ColorChannel_t)(blue / count);
 #endif /* defined(WEUI_LIB_COLOR_SCHEME__RGB) */
-	WeUi_Gfx_ColorRaw_t raw = WeUi_Gfx_Transform_Color2Bytes(mean);
-
-	for (WeUi_Gfx_PtPos_t y = y0; y < y1; y++) {
-		for (WeUi_Gfx_PtPos_t x = x0; x < x1; x++) {
-			WeUi_Gfx_Point_t pt = {.X = x, .Y = y};
-			WeUi_Gfx_Adapter_SetPixelRaw(&pt, raw);
-		}
-	}
+	return WeUi_Gfx_Transform_Color2Bytes(mean);
 }
 
-static void WeUi_Gfx_Effect_Compose_Pixelate(const WeUi_Gfx_Effect_Ctx_t* pcCtx) {
-	WeUi_Gfx_PtPos_t width	= (WeUi_Gfx_PtPos_t)pcCtx->Width;
-	WeUi_Gfx_PtPos_t height = (WeUi_Gfx_PtPos_t)pcCtx->Height;
+/* Block j of the row is j blocks from the grid's start; the edge ones may fall wholly off */
+static void WeUi_Gfx_Effect_PixelateSpan(const WeUi_Gfx_Effect_Ctx_t* pcCtx, u32 j,
+										 WeUi_Gfx_PtPos_t* pX0, WeUi_Gfx_PtPos_t* pX1) {
+	const WeUi_Gfx_Effect_PixelateGrid_t* pcG = &WeUi_Gfx_Effect_Grid;
+	WeUi_Gfx_PtPos_t x0						  = pcG->StartX + (WeUi_Gfx_PtPos_t)j * pcG->Block;
+	*pX0									  = GET_MAX(x0, 0);
+	*pX1 = GET_MIN(x0 + pcG->Block, (WeUi_Gfx_PtPos_t)pcCtx->Width);
+}
 
+static void WeUi_Gfx_Effect_Row_Pixelate(const WeUi_Gfx_Effect_Ctx_t* pcCtx, WeUi_Gfx_PtPos_t y) {
+	WeUi_Gfx_Effect_PixelateGrid_t* pG = &WeUi_Gfx_Effect_Grid;
+	WeUi_Gfx_PtPos_t width			   = (WeUi_Gfx_PtPos_t)pcCtx->Width;
+	WeUi_Gfx_PtPos_t height			   = (WeUi_Gfx_PtPos_t)pcCtx->Height;
 	/* Coarser up to halfway, finer after: a tent over the run */
-	bool oldSide		   = pcCtx->Progress < 0.5f;
-	float tent			   = oldSide ? 2.0f * pcCtx->Progress : 2.0f * (1.0f - pcCtx->Progress);
-	float blockMax		   = (float)height * WEUI_GFX_EFFECT_PIXELATE_BLOCK_SHARE;
-	WeUi_Gfx_PtPos_t block = (WeUi_Gfx_PtPos_t)(1.0f + (blockMax - 1.0f) * tent + 0.5f);
+	bool oldSide					   = pcCtx->Progress < 0.5f;
+	ASSERT_CHECK(pcCtx->Width <= WEUI_DISPLAY_WIDTH);
 
+	if (y == 0) {
+		float tent	   = oldSide ? 2.0f * pcCtx->Progress : 2.0f * (1.0f - pcCtx->Progress);
+		float blockMax = (float)height * WEUI_GFX_EFFECT_PIXELATE_BLOCK_SHARE;
+		pG->Block	   = (WeUi_Gfx_PtPos_t)(1.0f + (blockMax - 1.0f) * tent + 0.5f);
+		/* Blocks are laid from the centre, so the coarsest stay symmetric on the panel */
+		pG->StartX	   = (width / 2) % pG->Block - pG->Block;
+		pG->StartY	   = (height / 2) % pG->Block - pG->Block;
+		pG->MeansRow   = -1;
+	}
 	/* Sharp again: the incoming frame as drawn */
-	if (block <= 1 && !oldSide)
+	if (pG->Block <= 1 && !oldSide) {
+		WeUi_Gfx_Effect_RowNew(0, 0, y, width);
 		return;
+	}
 
-	/* Blocks are laid from the centre, so the coarsest stay symmetric on the panel */
-	WeUi_Gfx_PtPos_t startX = (width / 2) % block - block;
-	WeUi_Gfx_PtPos_t startY = (height / 2) % block - block;
-
-	for (WeUi_Gfx_PtPos_t y0 = startY; y0 < height; y0 += block) {
-		for (WeUi_Gfx_PtPos_t x0 = startX; x0 < width; x0 += block) {
-			WeUi_Gfx_Effect_PixelateBlock(GET_MAX(x0, 0), GET_MAX(y0, 0),
-										  GET_MIN(x0 + block, width), GET_MIN(y0 + block, height),
-										  oldSide);
+	s32 k				= (y - pG->StartY) / pG->Block;
+	WeUi_Gfx_PtPos_t y0 = pG->StartY + (WeUi_Gfx_PtPos_t)k * pG->Block;
+	u32 blocks			= (u32)((width - pG->StartX + pG->Block - 1) / pG->Block);
+	WeUi_Gfx_PtPos_t x0, x1;
+	if (k != pG->MeansRow) {
+		WeUi_Gfx_PtPos_t ya = GET_MAX(y0, 0), yb = GET_MIN(y0 + pG->Block, height);
+		for (u32 j = 0; j < blocks; j++) {
+			WeUi_Gfx_Effect_PixelateSpan(pcCtx, j, &x0, &x1);
+			if (x1 > x0)
+				pG->Means[j] = WeUi_Gfx_Effect_PixelateMean(x0, ya, x1, yb, oldSide);
 		}
+		pG->MeansRow = k;
+	}
+	for (u32 j = 0; j < blocks; j++) {
+		WeUi_Gfx_Effect_PixelateSpan(pcCtx, j, &x0, &x1);
+		WeUi_Gfx_Effect_RowFill(x0, x1 - x0, pG->Means[j]);
 	}
 }
 
 RET_STATE_t WeUi_Gfx_Effect_Pixelate(WeUi_Gfx_Effect_RenderCb_t renderIncoming, u16 frames) {
-	return WeUi_Gfx_Effect_RunTransition(WeUi_Gfx_Effect_Compose_Pixelate, frames, NULL,
-										 renderIncoming);
+	return WeUi_Gfx_Effect_RunRows(WeUi_Gfx_Effect_Row_Pixelate, NULL, frames, NULL,
+								   renderIncoming);
 }

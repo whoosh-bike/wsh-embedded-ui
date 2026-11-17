@@ -1,6 +1,7 @@
 #ifndef __WEUI_GFX_SCENEMGR_H
 #define __WEUI_GFX_SCENEMGR_H
 
+#include "weui_gfx_scene.h"
 #include "weui_gfx_types.h"
 
 /**
@@ -15,6 +16,13 @@
  *      OnInput or OnTimeout, cfg.Intro on the first Poll(); without one the scene cuts in
  *   5. its timeout started, if cfg.TimeoutsMs gives it one
  *   6. its frames drawn by Poll() from then on, at the scene's own Fps
+ *
+ * A scene draws itself one of two ways. A drawn one (Render) paints a whole frame, which the
+ * engine clears before and pushes after. A vector one (Build) gives a vector scene
+ * (weui_gfx_scene.h) built afresh, and the engine puts on the panel only what changed since the
+ * frame before - the way for a driver with no frame (WEUI_DISPLAY_BANDS), and for any frame that
+ * changes in places. A transition into or out of a vector scene draws it whole into the
+ * adapter's frames, which a driver with bands keeps only while cfg.FramesOpen() holds them.
  */
 
 /** @brief Max bytes an app may post through PostInput. */
@@ -45,6 +53,11 @@
 #define WEUI_GFX_SCENEMGR_PACE_FROM_FRAME_END 0
 #endif /* WEUI_GFX_SCENEMGR_PACE_FROM_FRAME_END */
 
+/** @brief Rectangles a vector scene's changes are given in at most, more merged into the last */
+#ifndef WEUI_GFX_SCENEMGR_DAMAGE_RECTS
+#define WEUI_GFX_SCENEMGR_DAMAGE_RECTS 8
+#endif /* WEUI_GFX_SCENEMGR_DAMAGE_RECTS */
+
 /** @brief OnInput return value meaning "stay on the current scene". */
 #define WEUI_GFX_SCENEMGR_SELF ((u32) - 1)
 
@@ -66,12 +79,22 @@ typedef void (*WeUi_Gfx_SceneMgr_TransitionFn_t)(VoidFunc_t renderIncoming);
 
 /**
  * @brief A scene's lifecycle as one const table, dispatched by index. All
- *        fields may be NULL/0 except Render.
+ *        fields may be NULL/0 except one of Render and Build.
  */
 typedef struct {
 	/** @brief One frame of the scene's content, nothing else: the engine clears the
 	 *         frame before it (see KeepFrame) and pushes it after. */
 	void (*Render)(WeUi_Gfx_Point_t* pRefPt);
+
+	/**
+	 * @brief A vector scene, in place of Render: the frame dt seconds after the one before,
+	 *        built from scratch into the scene's own WeUi_Gfx_Scene_t - its time stands still
+	 *        between frames, so dt is 0 for the first one and spans whatever held the engine,
+	 *        a transition or an action. NULL when it cannot be built: the frame is skipped.
+	 *        The engine finds what changed and presents that, through cfg.Present. Nothing is
+	 *        cleared under it, as under no vector scene: its first item is its background.
+	 */
+	WeUi_Gfx_Scene_t* (*Build)(float dt);
 
 	/**
 	 * @brief Return a target scene index, or WEUI_GFX_SCENEMGR_SELF to stay put.
@@ -124,6 +147,23 @@ typedef struct {
 	 *         Render, transitions included - for a status the app shows no
 	 *         matter which scene is up (a mode number, a link icon). */
 	void (*Overlay)(WeUi_Gfx_Point_t* pRefPt);
+
+	/** @brief Optional, the vector scenes' Overlay: items added to every frame of every vector
+	 *         scene right after its Build, transitions included. Their changes are found with
+	 *         the scene's, so they cost only when they move. */
+	void (*OverlayItems)(WeUi_Gfx_Scene_t* pScene);
+
+	/** @brief Optional: how a vector scene's changed rectangles reach the panel - a driver's
+	 *         own way, synchronised with its refresh, say. It pushes what it draws itself.
+	 *         NULL: WeUi_Gfx_Scene_Present() and the frame push. */
+	RET_STATE_t (*Present)(const WeUi_Gfx_Scene_t* pcScene, const WeUi_Gfx_ClipRect_t* pcRects,
+						   u8 num);
+
+	/** @brief Optional, for a driver that keeps frames only for a while: they are taken before
+	 *         a transition into or out of a vector scene and given back after it. false: no
+	 *         frames this time, the scene cuts in. */
+	bool (*FramesOpen)(void);
+	void (*FramesClose)(void);
 
 	/** @brief Optional: the inputs of every scene that has no OnInput of its own,
 	 *         same contract - the app's navigation in one place. */

@@ -47,4 +47,10 @@ typedef struct {
 /** @brief Paint one frame of an effect */
 typedef void (*WeUi_Gfx_Effect_FrameCb_t)(const WeUi_Gfx_Effect_Ctx_t* pcCtx);
 
+/**
+ * @brief Compose row `y` of a transition's frame, all of it, from the old picture and the new
+ *        one. Rows come top to bottom, from 0 every frame.
+ */
+typedef void (*WeUi_Gfx_Effect_RowCb_t)(const WeUi_Gfx_Effect_Ctx_t* pcCtx, WeUi_Gfx_PtPos_t y);
+
 #endif /* __WEUI_GFX_EFFECT_TYPES_H */

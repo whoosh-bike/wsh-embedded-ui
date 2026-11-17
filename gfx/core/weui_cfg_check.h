@@ -79,6 +79,37 @@
 #error "weui_cfg.h: WEUI_IMG_STORAGE_COLOR_SIZE disagrees with the image storage scheme"
 #endif
 
+// =================== Display output ===================
+
+/* 1: the driver has no frame to draw into. A scene goes to the panel a band at a time - the
+ * driver lends a buffer (DisplayM_BandGet), the band is drawn into it, the driver sends it
+ * (DisplayM_BandSend) - as WEUI_DISPLAY_BAND_FORMAT pixels, the bands' edges on multiples of
+ * WEUI_DISPLAY_BAND_ALIGN. Only scenes are drawn then; the frame calls do nothing */
+#ifndef WEUI_DISPLAY_BANDS
+#define WEUI_DISPLAY_BANDS 0
+#endif
+
+/* 1: the driver keeps its frames in memory and shows them (DisplayM_GetFrameMem): effects then
+ * work on the pixels there, rows at a time, instead of one call into the driver a pixel. The
+ * picture is the same either way */
+#ifndef WEUI_DISPLAY_FRAME_MEM
+#define WEUI_DISPLAY_FRAME_MEM 0
+#endif
+
+#ifndef WEUI_DISPLAY_BAND_FORMAT
+#define WEUI_DISPLAY_BAND_FORMAT WEUI_GFX_TARGET_RGB565
+#endif
+
+#ifndef WEUI_DISPLAY_BAND_ALIGN
+#define WEUI_DISPLAY_BAND_ALIGN 1
+#endif
+
+#if WEUI_DISPLAY_BANDS && (defined(WEUI_DISPLAY_FLIP_X) || defined(WEUI_DISPLAY_FLIP_Y))
+#if WEUI_DISPLAY_FLIP_X || WEUI_DISPLAY_FLIP_Y
+#error "weui_cfg.h: a band driver mirrors in hardware: WEUI_DISPLAY_FLIP_X/Y are for frames"
+#endif
+#endif
+
 // =================== Components ===================
 
 #ifndef WEUI_USE_COMPONENT__IMAGE
@@ -102,8 +133,16 @@
 #error "weui_cfg.h: WEUI_USE_COMPONENT__IMAGE_DITHER requires WEUI_LIB_COLOR_SCHEME__GRAY"
 #endif
 
+/* Where the library's large static buffers go - those sized by the panel or by a setting -
+ * as an attribute, e.g. a linker section in another RAM. It may be a section the startup
+ * does not zero: every such buffer is written before it is read, or cleared by its module */
+#ifndef WEUI_DATA_PLACEMENT
+#define WEUI_DATA_PLACEMENT
+#endif
+
+/* The image buffers on their own, when they should not go with the rest */
 #ifndef WEUI_IMAGES_OPS_DATA_PLACEMENT
-#define WEUI_IMAGES_OPS_DATA_PLACEMENT
+#define WEUI_IMAGES_OPS_DATA_PLACEMENT WEUI_DATA_PLACEMENT
 #endif
 
 #ifndef WEUI_HATCHING_PIXELS_SIZE_MAX
