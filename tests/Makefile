@@ -7,6 +7,8 @@
 #   make BANDS=1          scenes go out in bands, as to a driver with no frame
 #   make FRAME_MEM=1      effects work on the frames as memory; the frames match the same reference
 #   make BANDS=1 FRAME_MEM=1   transitions composed in bands too, held to the in-place ones
+#   make VECTOR=0         without the vector component: its tests and demos are left out, so
+#                         the golden runs differ - record their reference with `make golden VECTOR=0`
 #   make golden           record this host's frame hashes as the reference
 #   make check            run, then diff the frame hashes against the reference
 #
@@ -24,8 +26,9 @@ LIB     := $(if $(filter RGB GRAY,$(LIB)),$(LIB),RGB)
 
 BANDS   ?= 0
 FRAME_MEM ?= 0
+VECTOR  ?= 1
 
-VARIANT := $(W)x$(H)-$(DISPLAY)-$(LIB)$(if $(QRGEN),-QR)$(if $(filter 1,$(BANDS)),-BANDS)
+VARIANT := $(W)x$(H)-$(DISPLAY)-$(LIB)$(if $(QRGEN),-QR)$(if $(filter 1,$(BANDS)),-BANDS)$(if $(filter 0,$(VECTOR)),-NOVEC)
 BUILD   := build/$(VARIANT)$(if $(filter 1,$(FRAME_MEM)),-MEM)
 OUT     := out/$(VARIANT)
 # libm differs in the last bits between hosts, and so do the hashes of anything drawn
@@ -39,7 +42,8 @@ CFLAGS := -std=gnu2x -g -O1 -Wall -Wextra -Wno-unused-parameter -Wno-unused-func
 	-DWEUI_DISPLAY_WIDTH=$(W) -DWEUI_DISPLAY_HEIGHT=$(H) \
 	-DWEUI_TEST_DISPLAY_GRAY=$(if $(filter GRAY,$(DISPLAY)),1,0) \
 	-DWEUI_TEST_LIB_GRAY=$(if $(filter GRAY,$(LIB)),1,0) \
-	-DWEUI_DISPLAY_BANDS=$(BANDS) -DWEUI_DISPLAY_FRAME_MEM=$(FRAME_MEM)
+	-DWEUI_DISPLAY_BANDS=$(BANDS) -DWEUI_DISPLAY_FRAME_MEM=$(FRAME_MEM) \
+	-DWEUI_USE_COMPONENT__VECTOR=$(VECTOR)
 
 INC := -I. -I$(WEUI)/host/sim -I$(EMBLIB) -I$(EMBLIB)/math -I$(EMBLIB)/string -I$(EMBLIB)/term \
 	$(addprefix -I$(WEUI)/,common external/fonts fs gfx/anima gfx/core gfx/demo gfx/draw \
