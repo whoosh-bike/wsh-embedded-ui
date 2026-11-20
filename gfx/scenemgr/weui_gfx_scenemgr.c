@@ -52,8 +52,10 @@ static u32 WeUi_Gfx_SceneMgr_PendingScene;
  * the next one's dt; and whether the panel has shown anything else since, a switch or a
  * transition, so that the next frame goes whole */
 static WeUi_Gfx_Scene_t* WeUi_Gfx_SceneMgr_ShownScene;
+#if WEUI_USE_COMPONENT__VECTOR
 static u32 WeUi_Gfx_SceneMgr_BuiltMs;
 static bool WeUi_Gfx_SceneMgr_HasBuilt;
+#endif
 static bool WeUi_Gfx_SceneMgr_Whole;
 
 /* When the active scene's time is up - see cfg.TimeoutsMs */
@@ -111,9 +113,15 @@ static void WeUi_Gfx_SceneMgr_DrawOverlay(void) {
 }
 
 static bool WeUi_Gfx_SceneMgr_IsVector(const WeUi_Gfx_SceneVtbl_t* pcVtbl) {
+#if WEUI_USE_COMPONENT__VECTOR
 	return pcVtbl && pcVtbl->Build;
+#else
+	(void)pcVtbl;
+	return false;
+#endif
 }
 
+#if WEUI_USE_COMPONENT__VECTOR
 /* The vector scene's next frame with the overlay's items over it; NULL when it was not built */
 static WeUi_Gfx_Scene_t* WeUi_Gfx_SceneMgr_Build(const WeUi_Gfx_SceneVtbl_t* pcVtbl) {
 	u32 nowMs = WeUi_Gfx_FpsCtrl_GetTickCnt();
@@ -155,6 +163,7 @@ static void WeUi_Gfx_SceneMgr_PresentVector(const WeUi_Gfx_SceneVtbl_t* pcVtbl) 
 	WeUi_Gfx_SceneMgr_ShownScene = pScene;
 	WeUi_Gfx_SceneMgr_Whole		 = (rs != RET_STATE_SUCCESS);
 }
+#endif /* WEUI_USE_COMPONENT__VECTOR */
 
 /* One frame of the active scene for a transition to compose: drawn as Poll() draws
  * it, but paced here and never pushed - the effect pushes what it composed */
@@ -162,6 +171,7 @@ static void WeUi_Gfx_SceneMgr_RenderIncoming(void) {
 	const WeUi_Gfx_SceneVtbl_t* pcVtbl =
 		WeUi_Gfx_SceneMgr_HasScene ? WeUi_Gfx_SceneMgr_VtblGet(WeUi_Gfx_SceneMgr_CurScene) : NULL;
 
+#if WEUI_USE_COMPONENT__VECTOR
 	if (WeUi_Gfx_SceneMgr_IsVector(pcVtbl)) {
 		WeUi_Gfx_Scene_t* pScene = WeUi_Gfx_SceneMgr_Build(pcVtbl);
 		if (pScene &&
@@ -171,6 +181,7 @@ static void WeUi_Gfx_SceneMgr_RenderIncoming(void) {
 		WeUi_Gfx_FpsCtrl_DrawAndKeepFPS_MainFreq();
 		return;
 	}
+#endif /* WEUI_USE_COMPONENT__VECTOR */
 
 	WeUi_Gfx_SceneMgr_ShownScene = NULL;
 	WeUi_Gfx_Adapter_ClearDrawingFrame();
@@ -384,8 +395,10 @@ void WeUi_Gfx_SceneMgr_Init(const WeUi_Gfx_SceneMgrCfg_t* pcCfg) {
 	WeUi_Gfx_SceneMgr_PendingFn		 = NULL;
 	WeUi_Gfx_SceneMgr_TimeoutArmed	 = false;
 	WeUi_Gfx_SceneMgr_ShownScene	 = NULL;
-	WeUi_Gfx_SceneMgr_HasBuilt		 = false;
-	WeUi_Gfx_SceneMgr_Whole			 = true;
+#if WEUI_USE_COMPONENT__VECTOR
+	WeUi_Gfx_SceneMgr_HasBuilt = false;
+#endif
+	WeUi_Gfx_SceneMgr_Whole = true;
 }
 
 u32 WeUi_Gfx_SceneMgr_Poll(void) {
@@ -416,7 +429,9 @@ u32 WeUi_Gfx_SceneMgr_Poll(void) {
 		u32 frameStartMs = nowMs;
 
 		if (WeUi_Gfx_SceneMgr_IsVector(pcVtbl)) {
+#if WEUI_USE_COMPONENT__VECTOR
 			WeUi_Gfx_SceneMgr_PresentVector(pcVtbl);
+#endif
 		} else if (pcVtbl && pcVtbl->Render) {
 			WeUi_Gfx_SceneMgr_ShownScene = NULL;
 			if (pcVtbl->KeepFrame) {
@@ -510,13 +525,18 @@ u32 WeUi_Gfx_SceneMgr_GoTo(u32 target, WeUi_Gfx_SceneMgr_TransitionFn_t transiti
 static void WeUi_Gfx_SceneMgr_PlayTransition(WeUi_Gfx_SceneMgr_TransitionFn_t transition,
 											 WeUi_Gfx_SceneMgr_Trace_t trace) {
 	const WeUi_Gfx_SceneVtbl_t* pcVtbl = WeUi_Gfx_SceneMgr_VtblGet(WeUi_Gfx_SceneMgr_CurScene);
-	bool vector = WeUi_Gfx_SceneMgr_IsVector(pcVtbl) || WeUi_Gfx_SceneMgr_ShownScene;
+	bool vector						   = false;
+#if WEUI_USE_COMPONENT__VECTOR
+	vector = WeUi_Gfx_SceneMgr_IsVector(pcVtbl) || WeUi_Gfx_SceneMgr_ShownScene;
+#else
+	(void)pcVtbl;
+#endif /* WEUI_USE_COMPONENT__VECTOR */
 	bool framed = vector && WeUi_Gfx_SceneMgr_Cfg.FramesOpen;
 
 	if (framed && !WeUi_Gfx_SceneMgr_Cfg.FramesOpen()) {
 		return;
 	}
-#if WEUI_DISPLAY_BANDS
+#if WEUI_DISPLAY_BANDS && WEUI_USE_COMPONENT__VECTOR
 	if (WeUi_Gfx_SceneMgr_ShownScene) {
 		WeUi_Gfx_Scene_DrawToFrame(WeUi_Gfx_SceneMgr_ShownScene, WEUI_GFX_FRAME_DISPLAY);
 	}

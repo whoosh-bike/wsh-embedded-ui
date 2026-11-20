@@ -129,6 +129,13 @@
 #define WEUI_USE_COMPONENT__DEMO 1
 #endif
 
+/* gfx/vector: vector scenes and the rasteriser behind them. A host whose scenes all draw
+ * themselves (Vtbl Render) carries only their buffers then, sized by its panel: a few dozen
+ * KiB on a large one, so a product that never builds a vector scene drops it */
+#ifndef WEUI_USE_COMPONENT__VECTOR
+#define WEUI_USE_COMPONENT__VECTOR 1
+#endif
+
 #if WEUI_USE_COMPONENT__IMAGE_DITHER && !defined(WEUI_LIB_COLOR_SCHEME__GRAY)
 #error "weui_cfg.h: WEUI_USE_COMPONENT__IMAGE_DITHER requires WEUI_LIB_COLOR_SCHEME__GRAY"
 #endif

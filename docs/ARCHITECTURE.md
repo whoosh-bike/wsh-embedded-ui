@@ -238,7 +238,7 @@ panel size, the colour scheme and the platform bindings.
 | Display | `WEUI_DISPLAY_WIDTH`, `WEUI_DISPLAY_HEIGHT`, `WEUI_DISPLAY_COLOR` / `_GRAY`, `WEUI_DISPLAY_FLIP_X/Y` |
 | Display output | `WEUI_DISPLAY_BANDS` (0), `_BAND_FORMAT`, `_BAND_ALIGN` (1), `WEUI_DISPLAY_FRAME_MEM` (0) |
 | Memory placement | `WEUI_DATA_PLACEMENT`, `WEUI_IMAGES_OPS_DATA_PLACEMENT` |
-| Components | `WEUI_USE_COMPONENT__IMAGE`, `_IMAGE_DITHER`, `_IMAGE_COMPRESS`, `_WIDGET_QR` |
+| Components | `WEUI_USE_COMPONENT__IMAGE`, `_IMAGE_DITHER`, `_IMAGE_COMPRESS`, `_WIDGET_QR`, `_VECTOR` |
 | Asset storage | `WEUI_FS_USE_INT_STORAGE`, `_EXT_STORAGE`, `_FAT_SYNC`, `WEUI_FS_JSON_*` |
 | FPS | `WEUI_FPS_CTRL_MIN/DEF/MAX_RENDER_FREQ` (1 / 60 / 120) |
 | Scene manager | `WEUI_GFX_SCENEMGR_QUEUE_DEPTH` (8), `_INPUT_MAX_BYTES` (16), `_DAMAGE_RECTS` (8), `_PACE_FROM_FRAME_END` (0) |
@@ -272,6 +272,10 @@ example SRAM2 or CCM): image buffers, Game of Life cells, the plasma and aurora 
 vector rasteriser accumulator, fill tables, span rows, stroke contour copy and demo paths.
 `WEUI_IMAGES_OPS_DATA_PLACEMENT` overrides the image buffers; it falls back to
 `WEUI_DATA_PLACEMENT`.
+
+The vector buffers are sized by the panel and the vector settings, tens of KiB on a large
+one, so a host whose scenes all draw themselves sets `WEUI_USE_COMPONENT__VECTOR` to 0 and
+gets neither them nor the code: the scene manager compiles its vector path out.
 
 Almost everything else is static. The QR widget allocates two qrcodegen buffers per call
 through `WEUI_ALLOC` / `WEUI_FREE`; `WeUi_Fs_ForceSync()` allocates one copy chunk through
