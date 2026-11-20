@@ -724,6 +724,7 @@ static void Test_SceneMgrTimeouts(void) {
 
 // =================== Scene manager: vector scenes ===================
 
+#if WEUI_USE_COMPONENT__VECTOR
 #define TEST_VECTOR_TURNS 40
 
 /* Two vector scenes: a background each and a square that steps a pixel right every frame */
@@ -867,6 +868,7 @@ static void Test_SceneMgrVectorTransition(void) {
 			  PixelAt(WEUI_DISPLAY_WIDTH / 2, WEUI_DISPLAY_HEIGHT - 1) == Stored(Rgb(0, 255, 0)),
 		  "refused frames, the scene did not cut in");
 }
+#endif /* WEUI_USE_COMPONENT__VECTOR */
 
 // =================== QR ===================
 
@@ -912,6 +914,7 @@ static void Test_Demos(void) {
 		{"life", WeUi_DrawDemo_Life},
 		{"effects", WeUi_DrawDemo_Effects},
 		{"fields", WeUi_DrawDemo_Fields},
+#if WEUI_USE_COMPONENT__VECTOR
 		{"affine", WeUi_DrawDemo_Affine},
 		{"paths", WeUi_DrawDemo_Paths},
 		{"fills", WeUi_DrawDemo_Fills},
@@ -919,6 +922,7 @@ static void Test_Demos(void) {
 		{"strokes", WeUi_DrawDemo_Strokes},
 		{"eyes", WeUi_DrawDemo_Eyes},
 		{"scene", WeUi_DrawDemo_Scene},
+#endif /* WEUI_USE_COMPONENT__VECTOR */
 #if WEUI_USE_COMPONENT__WIDGET_QR
 		{"qr_demo", WeUi_DrawDemo_Qr},
 #endif /* WEUI_USE_COMPONENT__WIDGET_QR */
@@ -934,6 +938,7 @@ static void Test_Demos(void) {
 
 // =================== Vector ===================
 
+#if WEUI_USE_COMPONENT__VECTOR
 #define TEST_AFFINE_TOLERANCE 1e-4f
 
 static bool NearPt(WeUi_Gfx_PointF_t pt, float x, float y) {
@@ -2443,6 +2448,7 @@ static void Test_SceneToBuffer(void) {
 	CHECK(WeUi_Gfx_Scene_DrawTo(&TestScene, &wide) == RET_STATE_ERR_PARAM,
 		  "a target wider than the rasteriser");
 }
+#endif /* WEUI_USE_COMPONENT__VECTOR */
 
 // =================== Runner ===================
 
@@ -2629,6 +2635,7 @@ static const Test_t Tests[] = {
 	{"line_defaults_visible", Test_LineDefaultsVisible},
 	{"color_over_range", Test_ColorOverRange},
 	{"fill_matches_pixel", Test_FillMatchesPixel},
+#if WEUI_USE_COMPONENT__VECTOR
 	{"affine_compose", Test_AffineCompose},
 	{"affine_invert", Test_AffineInvert},
 	{"affine_stack", Test_AffineStack},
@@ -2663,6 +2670,7 @@ static const Test_t Tests[] = {
 	{"linear_spans", Test_LinearSpans},
 	{"scene_to_buffer", Test_SceneToBuffer},
 	{"scene_mask_bands", Test_SceneMaskBands},
+#endif /* WEUI_USE_COMPONENT__VECTOR */
 	{"text_width", Test_TextWidthConsistency},
 	{"utf8", Test_Utf8FromCodePoint},
 	{"text_no_font", Test_TextNoFont},
@@ -2687,8 +2695,10 @@ static const Test_t Tests[] = {
 	{"scenemgr_transitions", Test_SceneMgrTransitions},
 	{"scenemgr_timeouts", Test_SceneMgrTimeouts},
 	{"scenemgr_trace", Test_SceneMgrTrace},
+#if WEUI_USE_COMPONENT__VECTOR
 	{"scenemgr_vector", Test_SceneMgrVector},
 	{"scenemgr_vector_transition", Test_SceneMgrVectorTransition},
+#endif /* WEUI_USE_COMPONENT__VECTOR */
 #if WEUI_DISPLAY_BANDS && WEUI_DISPLAY_FRAME_MEM
 	{"transitions_in_bands", Test_TransitionsInBands},
 #endif /* WEUI_DISPLAY_BANDS && WEUI_DISPLAY_FRAME_MEM */

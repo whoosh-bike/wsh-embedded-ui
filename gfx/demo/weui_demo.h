@@ -9,8 +9,9 @@
  *
  * A demo paces and pushes its own frames and returns when it is over - the opposite
  * of a scene's Render(), which draws one frame and gets out. Play one as a one-shot
- * action, never as a Render(). Declared whatever WEUI_USE_COMPONENT__DEMO says: only
- * the .c files are gated.
+ * action, never as a Render(). The vector ones are declared only when the vector
+ * component is in, and the others whatever WEUI_USE_COMPONENT__DEMO says: only the
+ * .c files are gated.
  */
 
 /* weui_demo_shapes.c */
@@ -68,6 +69,7 @@ void WeUi_DrawDemo_FieldToxic(void);
 void WeUi_DrawDemo_Ramps(void);
 
 /* weui_demo_vector.c - the vector core, a piece at a time */
+#if WEUI_USE_COMPONENT__VECTOR
 
 /** @brief Squares nested on a transform stack: a body, a planet on its orbit, its moon */
 void WeUi_DrawDemo_Affine(void);
@@ -89,6 +91,7 @@ void WeUi_DrawDemo_Eyes(void);
 
 /** @brief A face as a scene, redrawn only where it changed; a bar shows how much that is */
 void WeUi_DrawDemo_Scene(void);
+#endif /* WEUI_USE_COMPONENT__VECTOR */
 
 /* weui_demo_round.c - the table of the demos a round plays, in its order */
 typedef struct {

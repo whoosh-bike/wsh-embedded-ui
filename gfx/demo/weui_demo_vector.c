@@ -1,6 +1,6 @@
 #include "weui_demo.h"
 
-#if WEUI_USE_COMPONENT__DEMO
+#if WEUI_USE_COMPONENT__DEMO && WEUI_USE_COMPONENT__VECTOR
 
 #include "log.h"
 #include "mathlib_common.h"

@@ -14,6 +14,7 @@ static const WeUi_Demo_t WeUi_Demos[] = {
 	{"static",          WeUi_DrawDemo_Static,          false},
 	{"primitives",      WeUi_DrawDemo_Primitives,      false},
 	{"cube rotation",   WeUi_DrawDemo_CubeRotation,    false},
+#if WEUI_USE_COMPONENT__VECTOR
 	{"affine",          WeUi_DrawDemo_Affine,          false},
 	{"paths",           WeUi_DrawDemo_Paths,           false},
 	{"fills",           WeUi_DrawDemo_Fills,           false},
@@ -21,6 +22,7 @@ static const WeUi_Demo_t WeUi_Demos[] = {
 	{"strokes",         WeUi_DrawDemo_Strokes,         false},
 	{"eyes",            WeUi_DrawDemo_Eyes,            false},
 	{"scene",           WeUi_DrawDemo_Scene,           false},
+#endif /* WEUI_USE_COMPONENT__VECTOR */
 	{"fonts",          WeUi_DrawDemo_Fonts,           false},
 	{"font transforms", WeUi_DrawDemo_FontTransforms,  false},
 	{"ramps",           WeUi_DrawDemo_Ramps,           true},
